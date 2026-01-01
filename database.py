@@ -1,0 +1,199 @@
+"""Database management for time tracking."""
+import sqlite3
+import os
+from datetime import datetime
+from typing import List, Optional, Tuple
+
+
+class TimeTrackerDB:
+    """Manages SQLite database for time tracking."""
+
+    def __init__(self, db_path: str = None):
+        """Initialize database connection."""
+        if db_path is None:
+            db_path = os.path.join(
+                os.path.expanduser("~/.local/share"),
+                "timetracker",
+                "timetracker.db"
+            )
+
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+        self.db_path = db_path
+        self.conn = sqlite3.connect(db_path)
+        self.conn.row_factory = sqlite3.Row
+        self._create_tables()
+
+    def _create_tables(self):
+        """Create necessary database tables."""
+        cursor = self.conn.cursor()
+
+        # Tasks table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                active INTEGER DEFAULT 1
+            )
+        """)
+
+        # Time entries table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS time_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                start_time TIMESTAMP NOT NULL,
+                end_time TIMESTAMP,
+                duration_seconds INTEGER,
+                note TEXT,
+                FOREIGN KEY (task_id) REFERENCES tasks(id)
+            )
+        """)
+
+        # Session state table (for tracking lock/unlock state)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS session_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                active_task_id INTEGER,
+                lock_time TIMESTAMP,
+                last_entry_id INTEGER,
+                FOREIGN KEY (active_task_id) REFERENCES tasks(id),
+                FOREIGN KEY (last_entry_id) REFERENCES time_entries(id)
+            )
+        """)
+
+        # Initialize session state if not exists
+        cursor.execute("""
+            INSERT OR IGNORE INTO session_state (id, active_task_id, lock_time, last_entry_id)
+            VALUES (1, NULL, NULL, NULL)
+        """)
+
+        self.conn.commit()
+
+    def add_task(self, name: str, description: str = "") -> int:
+        """Add a new task."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO tasks (name, description) VALUES (?, ?)",
+            (name, description)
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def get_tasks(self, active_only: bool = True) -> List[sqlite3.Row]:
+        """Get all tasks."""
+        cursor = self.conn.cursor()
+        if active_only:
+            cursor.execute("SELECT * FROM tasks WHERE active = 1 ORDER BY name")
+        else:
+            cursor.execute("SELECT * FROM tasks ORDER BY name")
+        return cursor.fetchall()
+
+    def get_task_by_id(self, task_id: int) -> Optional[sqlite3.Row]:
+        """Get a task by ID."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
+        return cursor.fetchone()
+
+    def start_time_entry(self, task_id: int, start_time: datetime = None) -> int:
+        """Start a new time entry for a task."""
+        if start_time is None:
+            start_time = datetime.now()
+
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO time_entries (task_id, start_time) VALUES (?, ?)",
+            (task_id, start_time)
+        )
+        entry_id = cursor.lastrowid
+
+        # Update session state
+        cursor.execute(
+            "UPDATE session_state SET active_task_id = ?, last_entry_id = ? WHERE id = 1",
+            (task_id, entry_id)
+        )
+
+        self.conn.commit()
+        return entry_id
+
+    def stop_time_entry(self, entry_id: int, end_time: datetime = None) -> int:
+        """Stop a time entry and calculate duration."""
+        if end_time is None:
+            end_time = datetime.now()
+
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT start_time FROM time_entries WHERE id = ?", (entry_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            return 0
+
+        start_time = datetime.fromisoformat(row['start_time'])
+        duration = int((end_time - start_time).total_seconds())
+
+        cursor.execute(
+            "UPDATE time_entries SET end_time = ?, duration_seconds = ? WHERE id = ?",
+            (end_time, duration, entry_id)
+        )
+
+        # Clear active task from session state
+        cursor.execute(
+            "UPDATE session_state SET active_task_id = NULL, last_entry_id = NULL WHERE id = 1"
+        )
+
+        self.conn.commit()
+        return duration
+
+    def get_session_state(self) -> Optional[sqlite3.Row]:
+        """Get current session state."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM session_state WHERE id = 1")
+        return cursor.fetchone()
+
+    def set_lock_time(self, lock_time: datetime = None):
+        """Record when the screen was locked."""
+        if lock_time is None:
+            lock_time = datetime.now()
+
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE session_state SET lock_time = ? WHERE id = 1",
+            (lock_time,)
+        )
+        self.conn.commit()
+
+    def clear_lock_time(self):
+        """Clear the lock time."""
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE session_state SET lock_time = NULL WHERE id = 1")
+        self.conn.commit()
+
+    def get_active_entry(self) -> Optional[sqlite3.Row]:
+        """Get the currently active time entry."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT te.*, t.name as task_name
+            FROM time_entries te
+            JOIN tasks t ON te.task_id = t.id
+            WHERE te.end_time IS NULL
+            ORDER BY te.start_time DESC
+            LIMIT 1
+        """)
+        return cursor.fetchone()
+
+    def get_task_total_time(self, task_id: int) -> int:
+        """Get total time logged for a task in seconds."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT SUM(duration_seconds) as total FROM time_entries WHERE task_id = ?",
+            (task_id,)
+        )
+        row = cursor.fetchone()
+        return row['total'] or 0
+
+    def close(self):
+        """Close database connection."""
+        self.conn.close()
