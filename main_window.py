@@ -18,6 +18,7 @@ class MainWindow(Gtk.Window):
         self.current_task_id = None
         self.current_entry_id = None
         self.timer_label_update_id = None
+        self.tray = None  # Will be set by TimeTrackerApp
 
         self.set_default_size(600, 400)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -31,6 +32,14 @@ class MainWindow(Gtk.Window):
 
         # Update timer every second
         self._start_timer_update()
+
+    def set_tray(self, tray):
+        """Set the tray indicator reference.
+
+        Args:
+            tray: TrayIndicator instance
+        """
+        self.tray = tray
 
     def _build_ui(self):
         """Build the main UI."""
@@ -209,6 +218,9 @@ class MainWindow(Gtk.Window):
             try:
                 self.db.add_task(task_name)
                 self._load_tasks()
+                # Update tray menu with new task
+                if self.tray:
+                    self.tray.refresh_tasks()
             except Exception as e:
                 error_dialog = Gtk.MessageDialog(
                     parent=self,
@@ -258,6 +270,10 @@ class MainWindow(Gtk.Window):
         self.stop_button.set_sensitive(True)
         self.start_button.set_sensitive(False)
 
+        # Update tray
+        if self.tray:
+            self.tray.update_state()
+
     def stop_tracking(self):
         """Stop tracking the current task."""
         if self.current_entry_id:
@@ -270,6 +286,10 @@ class MainWindow(Gtk.Window):
             self.start_button.set_sensitive(True)
 
             self._load_tasks()  # Refresh to show updated times
+
+            # Update tray
+            if self.tray:
+                self.tray.update_state()
 
     def _on_delete_event(self, widget, event):
         """Handle window close - hide instead of destroying."""

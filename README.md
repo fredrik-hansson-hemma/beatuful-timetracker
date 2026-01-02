@@ -7,6 +7,7 @@ En enkel och elegant time-tracker för Ubuntu/Linux med GTK-gränssnitt och smar
 ### Huvudfunktioner
 - **Tidsspårning**: Logga tid på olika uppgifter/projekt
 - **Smart unlock-hantering**: När du låser/stänger av datorn och sedan loggar in igen får du en dialog som frågar vad du vill göra med tiden du var borta
+- **System tray-integration**: Alltid tillgänglig i toppanelen med live timer-uppdatering
 - **Ubuntu-integration**: Nativt GTK-gränssnitt som passar perfekt in i Ubuntu
 - **Autostart**: Startar automatiskt när du loggar in
 - **Persistens**: All data sparas i en lokal SQLite-databas
@@ -19,6 +20,17 @@ När du kommer tillbaka till datorn efter att ha låst den visas en dialog som:
   1. **Fortsätt logga på samma uppgift** - tiden du var borta läggs till på uppgiften
   2. **Logga på en annan uppgift** - välj en annan uppgift att logga tiden på
   3. **Logga inte tiden** - skippa tiden helt
+
+### System Tray
+Programmet minimeras till system tray i toppanelen och ger dig:
+- **Live timer**: Aktiv timer visas direkt i tray-menyn (uppdateras varje sekund)
+- **Visuell indikation**: Olika ikon när timer är aktiv vs inaktiv
+- **Snabbåtkomst**:
+  - Visa/dölj huvudfönster
+  - Starta tidsinmatning från submeny med alla uppgifter
+  - Stoppa pågående tidsinmatning
+  - Avsluta programmet
+- **Minimalt fotavtryck**: Appens fönster kan stängas medan timer fortsätter köra i bakgrunden
 
 ## Installation
 
@@ -82,6 +94,7 @@ När du låser datorn medan tidsinmatning pågår och sedan loggar in igen:
 
 ### Arkitektur
 - **GUI**: GTK 3 via PyGObject
+- **System tray**: AppIndicator3
 - **Databas**: SQLite
 - **Lock/Unlock-detection**: DBus (lyssnar på org.gnome.ScreenSaver och org.freedesktop.login1)
 
@@ -95,6 +108,7 @@ All data sparas i:
 - `timetracker.py` - Huvudapplikation och DBus-hantering
 - `main_window.py` - Huvudfönster med uppgiftslista och timer
 - `unlock_dialog.py` - Dialog som visas efter unlock
+- `tray_indicator.py` - System tray-indikator med meny
 - `database.py` - Databashantering
 - `pyproject.toml` - Poetry-konfiguration och Python-beroenden
 - `install.sh` - Installationsskript

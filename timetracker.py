@@ -10,6 +10,7 @@ from pydbus import SessionBus
 from database import TimeTrackerDB
 from main_window import MainWindow
 from unlock_dialog import UnlockDialog
+from tray_indicator import TrayIndicator
 
 
 class TimeTrackerApp:
@@ -21,6 +22,10 @@ class TimeTrackerApp:
         self.main_window = MainWindow(self.db)
         self.bus = SessionBus()
         self.lock_time = None
+
+        # Setup system tray indicator
+        self.tray = TrayIndicator(self)
+        self.main_window.set_tray(self.tray)
 
         # Setup DBus signal listeners for screen lock/unlock
         self._setup_dbus_listeners()
@@ -162,6 +167,9 @@ class TimeTrackerApp:
         self.main_window._check_active_entry()
         self.main_window._load_tasks()
 
+        # Update tray
+        self.tray.update_state()
+
         return False  # Don't repeat timeout
 
     def run(self):
@@ -176,6 +184,7 @@ class TimeTrackerApp:
 
     def cleanup(self):
         """Cleanup before exit."""
+        self.tray.cleanup()
         self.main_window.cleanup()
         self.db.close()
 
