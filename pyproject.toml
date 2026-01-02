@@ -23,12 +23,23 @@ PyGObject = "^3.42.0"
 pydbus = "^0.6.0"
 
 [tool.poetry.group.dev.dependencies]
-# Utvecklingsberoenden kan läggas till här senare, t.ex.:
-# pytest = "^7.0"
-# black = "^23.0"
+pytest = "^7.4.0"
+pytest-mock = "^3.12.0"
+freezegun = "^1.4.0"
 
 [tool.poetry.scripts]
 timetracker = "timetracker:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+]
 
 [build-system]
 requires = ["poetry-core"]

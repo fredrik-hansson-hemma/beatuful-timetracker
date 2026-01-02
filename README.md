@@ -187,6 +187,45 @@ poetry shell
 python timetracker.py
 ```
 
+### Köra tester
+Projektet har ett omfattande test-suite som testar alla viktiga funktioner.
+
+```bash
+# Installera dev-dependencies (inkluderar pytest)
+poetry install
+
+# Kör alla tester
+poetry run pytest
+
+# Kör tester med verbose output
+poetry run pytest -v
+
+# Kör tester med coverage-rapport
+poetry run pytest --cov=. --cov-report=html
+
+# Kör endast databastester
+poetry run pytest tests/test_database.py
+
+# Kör endast unlock-logik-tester
+poetry run pytest tests/test_unlock_logic.py
+
+# Kör ett specifikt test
+poetry run pytest tests/test_database.py::TestTaskManagement::test_add_task
+```
+
+**Test-coverage:**
+- `test_database.py` - Omfattande tester för alla databasfunktioner
+  - Task management (skapa, hämta uppgifter)
+  - Time entries (starta, stoppa, beräkna duration)
+  - Session state (lock/unlock state)
+  - Edge cases (midnight-spanning, noll-duration, etc.)
+- `test_unlock_logic.py` - Tester för unlock-scenariot
+  - Fortsätt på samma uppgift
+  - Byt till annan uppgift
+  - Skippa tiden
+  - Flera lock/unlock-cykler
+  - Session state integrity
+
 ## Licens
 
 MIT License - Se LICENSE-filen för detaljer.

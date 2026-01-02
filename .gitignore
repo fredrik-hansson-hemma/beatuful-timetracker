@@ -8,3 +8,10 @@ venv/
 *.log
 .idea/
 .vscode/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
