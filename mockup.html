@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beautiful Time Tracker - Mockup</title>
+    <style>
+        body {
+            font-family: 'Ubuntu', 'Segoe UI', system-ui, sans-serif;
+            background: #f6f5f4;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .window {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            width: 600px;
+            overflow: hidden;
+        }
+
+        .titlebar {
+            background: linear-gradient(to bottom, #e1e1e1, #d1d1d1);
+            padding: 8px 12px;
+            border-bottom: 1px solid #c0c0c0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .window-control {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #aaa;
+        }
+
+        .window-control.close { background: #ff5f57; }
+        .window-control.minimize { background: #ffbd2e; }
+        .window-control.maximize { background: #28c840; }
+
+        .window-title {
+            flex: 1;
+            text-align: center;
+            font-weight: 600;
+            font-size: 13px;
+            color: #333;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c2c2c;
+            margin-bottom: 20px;
+        }
+
+        .frame {
+            border: 1px solid #d5d5d5;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .frame-label {
+            background: #f0f0f0;
+            padding: 6px 12px;
+            font-weight: 600;
+            font-size: 13px;
+            color: #333;
+            border-bottom: 1px solid #d5d5d5;
+        }
+
+        .frame-content {
+            padding: 15px;
+        }
+
+        .current-task {
+            text-align: center;
+        }
+
+        .task-name {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .timer {
+            font-family: 'Ubuntu Mono', 'Courier New', monospace;
+            font-size: 48px;
+            font-weight: bold;
+            color: #2c2c2c;
+            margin: 15px 0;
+            letter-spacing: 2px;
+        }
+
+        .timer.active {
+            color: #26a269;
+        }
+
+        button {
+            background: linear-gradient(to bottom, #fafafa, #ededed);
+            border: 1px solid #c0c0c0;
+            border-radius: 5px;
+            padding: 8px 20px;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+            color: #2c2c2c;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: linear-gradient(to bottom, #f5f5f5, #e8e8e8);
+            border-color: #a0a0a0;
+        }
+
+        button:active {
+            background: linear-gradient(to bottom, #e8e8e8, #d8d8d8);
+        }
+
+        button.suggested-action {
+            background: linear-gradient(to bottom, #62a0ea, #3584e4);
+            border-color: #1c71d8;
+            color: white;
+            font-weight: 500;
+        }
+
+        button.suggested-action:hover {
+            background: linear-gradient(to bottom, #5695e5, #2e7fdf);
+        }
+
+        button.destructive-action {
+            background: linear-gradient(to bottom, #f66151, #ed333b);
+            border-color: #c01c28;
+            color: white;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .task-list {
+            background: white;
+            border: 1px solid #d5d5d5;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .task-list table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .task-list th {
+            background: #f6f5f4;
+            padding: 8px 12px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 1px solid #d5d5d5;
+        }
+
+        .task-list td {
+            padding: 8px 12px;
+            font-size: 13px;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        .task-list tr:hover {
+            background: #f6f5f4;
+        }
+
+        .task-list tr.selected {
+            background: #e5f3ff;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .button-row button {
+            flex: 1;
+        }
+
+        /* Dialog styles */
+        .dialog {
+            width: 500px;
+        }
+
+        .dialog .content {
+            padding: 30px;
+        }
+
+        .dialog-header {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c2c2c;
+            margin-bottom: 15px;
+        }
+
+        .dialog-text {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
+        .dialog-highlight {
+            font-weight: 600;
+            color: #2c2c2c;
+        }
+
+        .radio-group {
+            margin: 20px 0;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+
+        .radio-option input[type="radio"] {
+            margin-right: 10px;
+        }
+
+        .radio-option label {
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .task-select {
+            margin-left: 30px;
+            padding: 6px 12px;
+            border: 1px solid #c0c0c0;
+            border-radius: 4px;
+            font-size: 13px;
+            background: white;
+            width: calc(100% - 30px);
+            margin-top: 5px;
+        }
+
+        .dialog-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px solid #e8e8e8;
+        }
+
+        .info-badge {
+            display: inline-block;
+            background: #e5f3ff;
+            color: #1c71d8;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Window -->
+    <div class="window">
+        <div class="titlebar">
+            <div class="window-controls">
+                <div class="window-control close"></div>
+                <div class="window-control minimize"></div>
+                <div class="window-control maximize"></div>
+            </div>
+            <div class="window-title">Beautiful Time Tracker</div>
+        </div>
+
+        <div class="content">
+            <div class="header">Time Tracker</div>
+
+            <!-- Current Task Section -->
+            <div class="frame">
+                <div class="frame-label">Aktiv tidsinmatning</div>
+                <div class="frame-content current-task">
+                    <div class="task-name">Loggar tid på: <strong>Programmering</strong></div>
+                    <div class="timer active">01:23:45</div>
+                    <button class="destructive-action">Stoppa tidsinmatning</button>
+                </div>
+            </div>
+
+            <!-- Task List Section -->
+            <div class="frame">
+                <div class="frame-label">Uppgifter</div>
+                <div class="frame-content">
+                    <div class="task-list">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Uppgift</th>
+                                    <th style="width: 100px;">Total tid</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Dokumentation</td>
+                                    <td>2h 15m</td>
+                                </tr>
+                                <tr>
+                                    <td>Möten</td>
+                                    <td>1h 30m</td>
+                                </tr>
+                                <tr class="selected">
+                                    <td>Programmering</td>
+                                    <td>5h 45m</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="button-row">
+                        <button>Ny uppgift</button>
+                        <button class="suggested-action" disabled>Starta tidsinmatning</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unlock Dialog -->
+    <div class="window dialog">
+        <div class="titlebar">
+            <div class="window-controls">
+                <div class="window-control close"></div>
+                <div class="window-control minimize"></div>
+                <div class="window-control maximize"></div>
+            </div>
+            <div class="window-title">Tidsinmatning - Du är tillbaka!</div>
+        </div>
+
+        <div class="content">
+            <div class="dialog-header">Välkommen tillbaka!</div>
+
+            <div class="dialog-text">
+                <div class="info-badge">Du var borta i 2 timmar och 30 minuter</div>
+            </div>
+
+            <div class="dialog-text">
+                Du loggade tid på uppgiften: <span class="dialog-highlight">Programmering</span>
+            </div>
+
+            <div class="dialog-text" style="margin-top: 20px; font-weight: 600;">
+                Vad vill du göra med tiden du var borta?
+            </div>
+
+            <div class="radio-group">
+                <div class="radio-option">
+                    <input type="radio" name="action" id="continue" checked>
+                    <label for="continue">Fortsätt logga på 'Programmering'</label>
+                </div>
+
+                <div class="radio-option">
+                    <input type="radio" name="action" id="other">
+                    <label for="other">Logga på en annan uppgift:</label>
+                </div>
+
+                <select class="task-select" disabled>
+                    <option>Dokumentation</option>
+                    <option>Möten</option>
+                    <option>Lunch</option>
+                </select>
+
+                <div class="radio-option" style="margin-top: 10px;">
+                    <input type="radio" name="action" id="skip">
+                    <label for="skip">Logga inte tiden (skippa)</label>
+                </div>
+            </div>
+
+            <div class="dialog-buttons">
+                <button>Avbryt</button>
+                <button class="suggested-action">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inactive State Window -->
+    <div class="window">
+        <div class="titlebar">
+            <div class="window-controls">
+                <div class="window-control close"></div>
+                <div class="window-control minimize"></div>
+                <div class="window-control maximize"></div>
+            </div>
+            <div class="window-title">Beautiful Time Tracker</div>
+        </div>
+
+        <div class="content">
+            <div class="header">Time Tracker</div>
+
+            <!-- Current Task Section - Inactive -->
+            <div class="frame">
+                <div class="frame-label">Aktiv tidsinmatning</div>
+                <div class="frame-content current-task">
+                    <div class="task-name">Ingen aktiv uppgift</div>
+                    <div class="timer">00:00:00</div>
+                    <button disabled>Stoppa tidsinmatning</button>
+                </div>
+            </div>
+
+            <!-- Task List Section -->
+            <div class="frame">
+                <div class="frame-label">Uppgifter</div>
+                <div class="frame-content">
+                    <div class="task-list">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Uppgift</th>
+                                    <th style="width: 100px;">Total tid</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Dokumentation</td>
+                                    <td>2h 15m</td>
+                                </tr>
+                                <tr class="selected">
+                                    <td>Möten</td>
+                                    <td>1h 30m</td>
+                                </tr>
+                                <tr>
+                                    <td>Programmering</td>
+                                    <td>5h 45m</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="button-row">
+                        <button>Ny uppgift</button>
+                        <button class="suggested-action">Starta tidsinmatning</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enable/disable task select based on radio button
+        const radioOther = document.getElementById('other');
+        const taskSelect = document.querySelector('.task-select');
+
+        document.querySelectorAll('input[name="action"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                taskSelect.disabled = !radioOther.checked;
+            });
+        });
+    </script>
+</body>
+</html>
