@@ -25,7 +25,7 @@ När du kommer tillbaka till datorn efter att ha låst den visas en dialog som:
 ### Krav
 - Ubuntu 20.04 eller senare (eller liknande Linux-distribution med GTK 3)
 - Python 3.8 eller senare
-- pip3
+- Poetry (installeras automatiskt av installationsskriptet om det saknas)
 
 ### Installationssteg
 
@@ -42,13 +42,16 @@ cd beatuful-timetracker
 ```
 
 Installationsskriptet kommer att:
-- Installera nödvändiga Python-paket
+- Installera Poetry om det inte finns
+- Installera nödvändiga Python-paket med Poetry
 - Konfigurera autostart så att programmet startar automatiskt vid inloggning
 - Skapa en desktop-fil
 
 3. Starta programmet:
 ```bash
-python3 timetracker.py
+poetry run python timetracker.py
+# Eller
+poetry run timetracker
 ```
 
 Eller hitta det i din applikationsmeny under "Beautiful Time Tracker".
@@ -93,7 +96,7 @@ All data sparas i:
 - `main_window.py` - Huvudfönster med uppgiftslista och timer
 - `unlock_dialog.py` - Dialog som visas efter unlock
 - `database.py` - Databashantering
-- `requirements.txt` - Python-beroenden
+- `pyproject.toml` - Poetry-konfiguration och Python-beroenden
 - `install.sh` - Installationsskript
 - `timetracker.desktop` - Desktop-fil för autostart
 
@@ -132,22 +135,56 @@ dbus-send --session --print-reply --dest=org.gnome.ScreenSaver /org/gnome/Screen
 ```
 
 ### Python-beroenden saknas
-Installera manuellt:
+Installera manuellt med Poetry:
 ```bash
-pip3 install --user PyGObject pydbus
+poetry install
+```
+
+Eller om Poetry inte är installerat:
+```bash
+# Installera Poetry först
+curl -sSL https://install.python-poetry.org | python3 -
+
+# Lägg till Poetry i PATH
+export PATH="$HOME/.local/bin:$PATH"
+
+# Installera beroenden
+poetry install
 ```
 
 ## Utveckling
 
-Bidrag välkomnas! Programmet är skrivet i Python med GTK 3.
+Bidrag välkomnas! Programmet är skrivet i Python med GTK 3 och använder Poetry för beroendehantering.
 
 ### Köra utan installation
 ```bash
+# Installera Poetry om du inte har det
+curl -sSL https://install.python-poetry.org | python3 -
+
 # Installera beroenden
-pip3 install --user -r requirements.txt
+poetry install
 
 # Kör programmet
-python3 timetracker.py
+poetry run python timetracker.py
+```
+
+### Lägga till nya beroenden
+```bash
+# Lägg till ett produktionsberoende
+poetry add paketnamn
+
+# Lägg till ett utvecklingsberoende
+poetry add --group dev paketnamn
+```
+
+### Skapa en virtuell miljö manuellt
+Poetry skapar och hanterar virtuella miljöer automatiskt, men du kan också:
+```bash
+# Aktivera Poetry's virtuella miljö
+poetry shell
+
+# Nu kan du köra python direkt
+python timetracker.py
 ```
 
 ## Licens

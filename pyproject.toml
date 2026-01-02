@@ -1,0 +1,35 @@
+[tool.poetry]
+name = "beautiful-timetracker"
+version = "0.1.0"
+description = "En enkel och elegant time-tracker för Ubuntu/Linux med GTK-gränssnitt och smart hantering av tiden när du är borta från datorn"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+license = "MIT"
+keywords = ["timetracker", "gtk", "productivity", "ubuntu"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Office/Business",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+PyGObject = "^3.42.0"
+pydbus = "^0.6.0"
+
+[tool.poetry.group.dev.dependencies]
+# Utvecklingsberoenden kan läggas till här senare, t.ex.:
+# pytest = "^7.0"
+# black = "^23.0"
+
+[tool.poetry.scripts]
+timetracker = "timetracker:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
