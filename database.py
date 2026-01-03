@@ -147,6 +147,62 @@ class TimeTrackerDB:
         self.conn.commit()
         return duration
 
+    def update_time_entry(self, entry_id: int, task_id: int, start_time: datetime,
+                         end_time: Optional[datetime], duration_seconds: int,
+                         note: Optional[str] = None) -> bool:
+        """Update an existing time entry.
+
+        Args:
+            entry_id: ID of entry to update
+            task_id: New task ID
+            start_time: New start time
+            end_time: New end time (can be None)
+            duration_seconds: New duration in seconds
+            note: Optional note
+
+        Returns:
+            True if update successful, False otherwise
+        """
+        cursor = self.conn.cursor()
+
+        # Check if entry exists
+        cursor.execute("SELECT id FROM time_entries WHERE id = ?", (entry_id,))
+        if not cursor.fetchone():
+            return False
+
+        cursor.execute("""
+            UPDATE time_entries
+            SET task_id = ?, start_time = ?, end_time = ?, duration_seconds = ?, note = ?
+            WHERE id = ?
+        """, (task_id, start_time, end_time, duration_seconds, note, entry_id))
+
+        self.conn.commit()
+        return True
+
+    def delete_time_entry(self, entry_id: int) -> bool:
+        """Delete a time entry.
+
+        Args:
+            entry_id: ID of entry to delete
+
+        Returns:
+            True if deletion successful, False otherwise
+        """
+        cursor = self.conn.cursor()
+
+        # Clear from session state if it's the active entry
+        cursor.execute("""
+            UPDATE session_state
+            SET active_task_id = NULL, last_entry_id = NULL
+            WHERE last_entry_id = ?
+        """, (entry_id,))
+
+        # Delete the entry
+        cursor.execute("DELETE FROM time_entries WHERE id = ?", (entry_id,))
+
+        self.conn.commit()
+        return cursor.rowcount > 0
+
     def get_session_state(self) -> Optional[sqlite3.Row]:
         """Get current session state."""
         cursor = self.conn.cursor()

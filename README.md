@@ -7,6 +7,7 @@ En enkel och elegant time-tracker för Ubuntu/Linux med GTK-gränssnitt och smar
 ### Huvudfunktioner
 - **Tidsspårning**: Logga tid på olika uppgifter/projekt
 - **Smart unlock-hantering**: När du låser/stänger av datorn och sedan loggar in igen får du en dialog som frågar vad du vill göra med tiden du var borta
+- **Crash recovery**: Automatisk detektering av oväntat avslut med möjlighet att rädda eller editera förlorad tidsinmatning
 - **System tray-integration**: Alltid tillgänglig i toppanelen med live timer-uppdatering
 - **Ubuntu-integration**: Nativt GTK-gränssnitt som passar perfekt in i Ubuntu
 - **Autostart**: Startar automatiskt när du loggar in
@@ -31,6 +32,23 @@ Programmet minimeras till system tray i toppanelen och ger dig:
   - Stoppa pågående tidsinmatning
   - Avsluta programmet
 - **Minimalt fotavtryck**: Appens fönster kan stängas medan timer fortsätter köra i bakgrunden
+
+### Crash Recovery
+Om programmet avslutas oväntat (krasch, strömavbrott, etc.) medan tidsinmatning pågår, detekteras detta automatiskt vid nästa start:
+- **Automatisk detektering**: Hittar "hängande" tidsinmatningar (äldre än 5 minuter)
+- **Varningsdialog**: Visar vilken uppgift som var aktiv och hur länge sedan
+- **Fyra alternativ**:
+  1. **Fortsätt logga** - Starta om tidsinmatningen från nu
+  2. **Stoppa nu** - Logga all tid sedan start (även tiden under krasch)
+  3. **Editera** - Öppnar en editor där du kan ställa in exakta tider manuellt
+  4. **Radera** - Ta bort tidsinmatningen helt
+- **Återanvändbar editor**: Edit Entry-dialogen kan användas för att korrigera starttid, sluttid, duration och uppgift
+
+**Edit Entry-funktioner:**
+- Ändra starttid, sluttid eller duration - de andra fälten uppdateras automatiskt
+- Byt uppgift för en tidsinmatning
+- Lägg till anteckningar
+- Full validering av tider och duration
 
 ## Installation
 
@@ -105,11 +123,13 @@ All data sparas i:
 ```
 
 ### Filer
-- `timetracker.py` - Huvudapplikation och DBus-hantering
+- `timetracker.py` - Huvudapplikation, DBus-hantering och crash recovery
 - `main_window.py` - Huvudfönster med uppgiftslista och timer
 - `unlock_dialog.py` - Dialog som visas efter unlock
+- `crash_recovery_dialog.py` - Dialog för crash recovery
+- `edit_entry_dialog.py` - Återanvändbar dialog för att editera tidsinmatningar
 - `tray_indicator.py` - System tray-indikator med meny
-- `database.py` - Databashantering
+- `database.py` - Databashantering (inkl. update/delete entries)
 - `pyproject.toml` - Poetry-konfiguration och Python-beroenden
 - `install.sh` - Installationsskript
 - `timetracker.desktop` - Desktop-fil för autostart
@@ -223,6 +243,9 @@ poetry run pytest tests/test_database.py
 # Kör endast unlock-logik-tester
 poetry run pytest tests/test_unlock_logic.py
 
+# Kör endast crash recovery-tester
+poetry run pytest tests/test_crash_recovery.py
+
 # Kör ett specifikt test
 poetry run pytest tests/test_database.py::TestTaskManagement::test_add_task
 ```
@@ -239,6 +262,11 @@ poetry run pytest tests/test_database.py::TestTaskManagement::test_add_task
   - Skippa tiden
   - Flera lock/unlock-cykler
   - Session state integrity
+- `test_crash_recovery.py` - Tester för crash recovery
+  - Orphaned entry detection
+  - Update/delete entries
+  - Alla fyra recovery-scenarios (continue, stop, delete, edit)
+  - Time threshold detection (5 minuter)
 
 ## Licens
 

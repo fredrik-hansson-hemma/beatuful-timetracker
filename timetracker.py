@@ -11,6 +11,7 @@ from database import TimeTrackerDB
 from main_window import MainWindow
 from unlock_dialog import UnlockDialog
 from tray_indicator import TrayIndicator
+from crash_recovery_dialog import CrashRecoveryDialog
 
 
 class TimeTrackerApp:
@@ -98,9 +99,23 @@ class TimeTrackerApp:
         self._show_unlock_dialog_if_needed()
 
     def _check_unlock_on_startup(self):
-        """Check on startup if we need to show unlock dialog."""
+        """Check on startup if we need to show unlock dialog or handle crash recovery."""
+        # First check for orphaned entries (crash recovery)
+        active_entry = self.db.get_active_entry()
         state = self.db.get_session_state()
 
+        if active_entry and not state['lock_time']:
+            # We have an active entry but no lock time - likely a crash
+            start_time = datetime.fromisoformat(active_entry['start_time'])
+            elapsed = datetime.now() - start_time
+
+            # If entry is older than 5 minutes, treat as orphaned
+            if elapsed.total_seconds() > 300:
+                print("Detected orphaned entry, showing crash recovery dialog")
+                GLib.timeout_add(500, self._handle_crash_recovery, active_entry)
+                return
+
+        # Normal unlock dialog logic
         if state and state['lock_time'] and state['active_task_id']:
             print("Detected previous lock, showing unlock dialog")
             # Delay slightly to ensure window manager is ready
@@ -168,6 +183,75 @@ class TimeTrackerApp:
         self.main_window._load_tasks()
 
         # Update tray
+        self.tray.update_state()
+
+        return False  # Don't repeat timeout
+
+    def _handle_crash_recovery(self, orphaned_entry):
+        """Handle crash recovery for orphaned time entry.
+
+        Args:
+            orphaned_entry: The orphaned time entry from database
+        """
+        # Prepare entry data for dialog
+        entry_data = {
+            'id': orphaned_entry['id'],
+            'task_id': orphaned_entry['task_id'],
+            'task_name': orphaned_entry['task_name'],
+            'start_time': orphaned_entry['start_time'],
+            'end_time': orphaned_entry['end_time'],
+            'duration_seconds': orphaned_entry['duration_seconds'],
+            'note': orphaned_entry.get('note')
+        }
+
+        # Show crash recovery dialog
+        dialog = CrashRecoveryDialog(self.db, entry_data)
+        action, edited_data = dialog.run_and_get_result()
+        dialog.destroy()
+
+        now = datetime.now()
+
+        # Handle user's choice
+        if action == 'continue':
+            # Stop the old entry and start a new one
+            self.db.stop_time_entry(orphaned_entry['id'], now)
+            self.main_window.start_tracking(orphaned_entry['task_id'])
+            print(f"Crash recovery: Restarted tracking on task {orphaned_entry['task_id']}")
+
+        elif action == 'stop':
+            # Stop the entry now (logs all time since start)
+            self.db.stop_time_entry(orphaned_entry['id'], now)
+            print(f"Crash recovery: Stopped entry, logged all time")
+
+        elif action == 'delete':
+            # Delete the orphaned entry
+            self.db.delete_time_entry(orphaned_entry['id'])
+            print(f"Crash recovery: Deleted orphaned entry")
+
+        elif action == 'edit':
+            # Update entry with edited data
+            if edited_data:
+                success = self.db.update_time_entry(
+                    edited_data['id'],
+                    edited_data['task_id'],
+                    edited_data['start_time'],
+                    edited_data['end_time'],
+                    edited_data['duration_seconds'],
+                    edited_data['note']
+                )
+                if success:
+                    print(f"Crash recovery: Updated entry with edited data")
+                else:
+                    print(f"Crash recovery: Failed to update entry")
+
+        elif action == 'cancel':
+            # User cancelled - just stop the entry
+            self.db.stop_time_entry(orphaned_entry['id'], now)
+            print(f"Crash recovery: User cancelled, stopped entry")
+
+        # Update UI
+        self.main_window._check_active_entry()
+        self.main_window._load_tasks()
         self.tray.update_state()
 
         return False  # Don't repeat timeout
