@@ -80,9 +80,9 @@ class CrashRecoveryDialog(Gtk.Dialog):
         details_box.set_margin_start(10)
         details_box.set_margin_end(10)
 
-        # Task name
+        # Task name - make it clear this was active at crash
         task_label = Gtk.Label()
-        task_label.set_markup(f"<b>Uppgift:</b> {self.entry_data['task_name']}")
+        task_label.set_markup(f"<b>Aktiv uppgift vid krasch:</b> {self.entry_data['task_name']}")
         task_label.set_xalign(0)
         details_box.pack_start(task_label, False, False, 0)
 
