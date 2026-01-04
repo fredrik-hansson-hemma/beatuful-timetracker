@@ -6,6 +6,7 @@ En enkel och elegant time-tracker för Ubuntu/Linux med GTK-gränssnitt och smar
 
 ### Huvudfunktioner
 - **Tidsspårning**: Logga tid på olika uppgifter/projekt
+- **Hantera tidsinmatningar**: Visa, redigera och ta bort befintliga tidsinmatningar med flexibla filter
 - **Smart unlock-hantering**: När du låser/stänger av datorn och sedan loggar in igen får du en dialog som frågar vad du vill göra med tiden du var borta
 - **Crash recovery**: Automatisk detektering av oväntat avslut med möjlighet att rädda eller editera förlorad tidsinmatning
 - **System tray-integration**: Alltid tillgänglig i toppanelen med live timer-uppdatering
@@ -21,6 +22,18 @@ När du kommer tillbaka till datorn efter att ha låst den visas en dialog som:
   1. **Fortsätt logga på samma uppgift** - tiden du var borta läggs till på uppgiften
   2. **Logga på en annan uppgift** - välj en annan uppgift att logga tiden på
   3. **Logga inte tiden** - skippa tiden helt
+
+### Hantera tidsinmatningar
+Ett dedikerat fönster för att hantera alla dina tidsinmatningar:
+- **Filtrera tidsinmatningar**:
+  - Snabbfilter: Idag (standard), Denna vecka, Senaste 7 dagarna, Denna månad
+  - Filtrera på specifik uppgift via dropdown-meny
+- **Lista med tidsinmatningar**: Visar uppgift, starttid, sluttid, varaktighet och anteckning
+- **Lägg till tidsinmatning**: Skapa nya tidsinmatningar manuellt
+- **Editera tidsinmatning**: Ändra starttid, sluttid, uppgift eller anteckning
+  - Automatisk uppdatering av duration när tider ändras
+  - Full validering av tider
+- **Ta bort tidsinmatning**: Radera tidsinmatningar med bekräftelsedialog
 
 ### System Tray
 Programmet minimeras till system tray i toppanelen och ger dig:
@@ -109,6 +122,20 @@ Eller hitta det i din applikationsmeny under "Beautiful Time Tracker".
 1. Klicka "Stoppa tidsinmatning"
 2. Tiden sparas automatiskt på uppgiften
 
+### Hantera tidsinmatningar
+För att visa, redigera eller ta bort befintliga tidsinmatningar:
+1. Klicka på "Hantera tidsinmatningar" i huvudfönstret
+2. Använd snabbfilter för att välja tidsperiod:
+   - **Idag** (standard) - Visa dagens tidsinmatningar
+   - **Denna vecka** - Visa veckans tidsinmatningar
+   - **Senaste 7 dagarna** - Visa senaste veckan
+   - **Denna månad** - Visa månadens tidsinmatningar
+3. Filtrera på specifik uppgift med dropdown-menyn
+4. Välj en tidsinmatning i listan för att:
+   - **Editera** - Ändra starttid, sluttid, uppgift eller anteckning
+   - **Ta bort** - Radera tidsinmatningen
+5. Klicka "Lägg till" för att manuellt lägga till en ny tidsinmatning
+
 ### Hantera tid efter unlock
 När du låser datorn medan tidsinmatning pågår och sedan loggar in igen:
 1. En dialog visas automatiskt
@@ -132,11 +159,12 @@ All data sparas i:
 ### Filer
 - `timetracker.py` - Huvudapplikation, DBus-hantering och crash recovery
 - `main_window.py` - Huvudfönster med uppgiftslista och timer
+- `entries_window.py` - Fönster för att hantera tidsinmatningar med filter
 - `unlock_dialog.py` - Dialog som visas efter unlock
 - `crash_recovery_dialog.py` - Dialog för crash recovery
 - `edit_entry_dialog.py` - Återanvändbar dialog för att editera tidsinmatningar
 - `tray_indicator.py` - System tray-indikator med meny
-- `database.py` - Databashantering (inkl. update/delete entries)
+- `database.py` - Databashantering (inkl. update/delete/query entries)
 - `pyproject.toml` - Poetry-konfiguration och Python-beroenden
 - `install.sh` - Installationsskript
 - `timetracker.desktop` - Desktop-fil för autostart

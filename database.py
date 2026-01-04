@@ -282,6 +282,47 @@ class TimeTrackerDB:
         row = cursor.fetchone()
         return row['total'] or 0
 
+    def get_entries(self, start_date: datetime = None, end_date: datetime = None,
+                    task_id: int = None) -> list:
+        """Get time entries with optional filtering.
+
+        Args:
+            start_date: Filter entries starting from this date (inclusive)
+            end_date: Filter entries up to this date (inclusive)
+            task_id: Filter entries for specific task
+
+        Returns:
+            List of time entry rows with task name included
+        """
+        cursor = self.conn.cursor()
+
+        query = """
+            SELECT te.*, t.name as task_name
+            FROM time_entries te
+            JOIN tasks t ON te.task_id = t.id
+            WHERE 1=1
+        """
+        params = []
+
+        if start_date:
+            query += " AND te.start_time >= ?"
+            params.append(start_date.isoformat())
+
+        if end_date:
+            # Add one day to end_date to make it inclusive
+            end_date_inclusive = end_date + timedelta(days=1)
+            query += " AND te.start_time < ?"
+            params.append(end_date_inclusive.isoformat())
+
+        if task_id:
+            query += " AND te.task_id = ?"
+            params.append(task_id)
+
+        query += " ORDER BY te.start_time DESC"
+
+        cursor.execute(query, params)
+        return cursor.fetchall()
+
     def close(self):
         """Close database connection."""
         self.conn.close()

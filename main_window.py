@@ -5,6 +5,7 @@ from gi.repository import Gtk, GLib, Gio
 from datetime import datetime, timedelta
 from typing import Optional
 from database import TimeTrackerDB
+from entries_window import EntriesWindow
 
 
 class MainWindow(Gtk.Window):
@@ -119,6 +120,10 @@ class MainWindow(Gtk.Window):
         new_task_button.connect("clicked", self._on_new_task_clicked)
         button_box.pack_start(new_task_button, True, True, 0)
 
+        manage_entries_button = Gtk.Button(label="Hantera tidsinmatningar")
+        manage_entries_button.connect("clicked", self._on_manage_entries_clicked)
+        button_box.pack_start(manage_entries_button, True, True, 0)
+
         self.start_button = Gtk.Button(label="Starta tidsinmatning")
         self.start_button.get_style_context().add_class("suggested-action")
         self.start_button.connect("clicked", self._on_start_clicked)
@@ -231,6 +236,11 @@ class MainWindow(Gtk.Window):
                 )
                 error_dialog.run()
                 error_dialog.destroy()
+
+    def _on_manage_entries_clicked(self, button):
+        """Handle manage entries button click."""
+        entries_window = EntriesWindow(self.db, parent=self)
+        entries_window.show_all()
 
     def _on_start_clicked(self, button):
         """Handle start button click."""
