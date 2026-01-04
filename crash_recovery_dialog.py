@@ -114,13 +114,13 @@ class CrashRecoveryDialog(Gtk.Dialog):
         # Radio buttons for actions
         self.radio_continue = Gtk.RadioButton.new_with_label_from_widget(
             None,
-            "Fortsätt logga från nu (startar om tidsinmatningen)"
+            "Fortsätt logga (behåll entry och fortsätt ticka)"
         )
         content.pack_start(self.radio_continue, False, False, 5)
 
         self.radio_stop = Gtk.RadioButton.new_with_label_from_widget(
             self.radio_continue,
-            "Stoppa nu (loggar all tid sedan start)"
+            "Stoppa nu (loggar all tid sedan start inklusive crash-period)"
         )
         content.pack_start(self.radio_stop, False, False, 5)
 

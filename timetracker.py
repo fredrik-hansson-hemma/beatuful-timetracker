@@ -213,10 +213,9 @@ class TimeTrackerApp:
 
         # Handle user's choice
         if action == 'continue':
-            # Stop the old entry and start a new one
-            self.db.stop_time_entry(orphaned_entry['id'], now)
-            self.main_window.start_tracking(orphaned_entry['task_id'])
-            print(f"Crash recovery: Restarted tracking on task {orphaned_entry['task_id']}")
+            # Just let the entry continue being active - do nothing!
+            # The timer will continue to tick and include crash time
+            print(f"Crash recovery: Continuing tracking on task {orphaned_entry['task_id']}")
 
         elif action == 'stop':
             # Stop the entry now (logs all time since start)

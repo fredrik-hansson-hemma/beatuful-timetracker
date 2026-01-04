@@ -215,24 +215,25 @@ class TestCrashRecoveryScenarios:
 
         # Simulate crash: entry from yesterday
         crash_start = datetime(2024, 1, 14, 16, 0, 0)
-        old_entry_id = db.start_time_entry(tasks['programming'], crash_start)
+        entry_id = db.start_time_entry(tasks['programming'], crash_start)
 
-        # User chooses "continue" - stop old entry, start new one
-        now = datetime(2024, 1, 15, 10, 0, 0)
-        db.stop_time_entry(old_entry_id, now)
-        new_entry_id = db.start_time_entry(tasks['programming'])
+        # User chooses "continue" - just let the entry stay active
+        # No action needed - entry continues ticking
 
-        # Old entry should be stopped
+        # Entry should still be active (not stopped)
         cursor = db.conn.cursor()
-        cursor.execute("SELECT * FROM time_entries WHERE id = ?", (old_entry_id,))
-        old_entry = cursor.fetchone()
-        assert old_entry['end_time'] is not None
-        assert old_entry['duration_seconds'] > 0
+        cursor.execute("SELECT * FROM time_entries WHERE id = ?", (entry_id,))
+        entry = cursor.fetchone()
+        assert entry['end_time'] is None  # Still active!
+        assert entry['duration_seconds'] is None  # Not calculated yet
 
-        # New entry should be active
+        # The same entry should be active
         active = db.get_active_entry()
         assert active is not None
-        assert active['id'] == new_entry_id
+        assert active['id'] == entry_id
+
+        # Timer will continue to count from crash_start, including crash time
+        # When eventually stopped, it will log all time since crash_start
 
     @freeze_time("2024-01-15 10:00:00")
     def test_scenario_stop_and_log_all(self, db_with_tasks):

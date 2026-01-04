@@ -38,8 +38,8 @@ Om programmet avslutas oväntat (krasch, strömavbrott, etc.) medan tidsinmatnin
 - **Automatisk detektering**: Hittar "hängande" tidsinmatningar (äldre än 5 minuter)
 - **Varningsdialog**: Visar vilken uppgift som var aktiv och hur länge sedan
 - **Fyra alternativ**:
-  1. **Fortsätt logga** - Starta om tidsinmatningen från nu
-  2. **Stoppa nu** - Logga all tid sedan start (även tiden under krasch)
+  1. **Fortsätt logga** - Behåll entry:n aktiv och fortsätt ticka (inklusive crash-tid)
+  2. **Stoppa nu** - Stoppa entry:n nu och logga all tid sedan start (inklusive crash-period)
   3. **Editera** - Öppnar en editor där du kan ställa in exakta tider manuellt
   4. **Radera** - Ta bort tidsinmatningen helt
 - **Återanvändbar editor**: Edit Entry-dialogen kan användas för att korrigera starttid, sluttid, duration och uppgift
