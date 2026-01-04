@@ -37,7 +37,7 @@ Programmet minimeras till system tray i toppanelen och ger dig:
 Om programmet avslutas oväntat (krasch, strömavbrott, etc.) medan tidsinmatning pågår, detekteras detta automatiskt vid nästa start:
 - **Automatisk detektering**: Hittar "hängande" tidsinmatningar (äldre än 5 minuter)
 - **Heartbeat-system**: Programmet uppdaterar en timestamp var 60:e sekund medan tidsinmatning pågår, vilket hjälper till att uppskatta när krashen inträffade
-- **Varningsdialog**: Visar vilken uppgift som var aktiv, hur länge sedan start, och när senaste aktivitet registrerades
+- **Varningsdialog**: Visar vilken uppgift som var aktiv, hur länge sedan start, och estimerad krashtid
 - **Fyra alternativ**:
   1. **Fortsätt logga** - Behåll entry:n aktiv och fortsätt ticka (inklusive crash-tid)
   2. **Stoppa nu** - Stoppa entry:n nu och logga all tid sedan start (inklusive crash-period)
@@ -48,8 +48,8 @@ Om programmet avslutas oväntat (krasch, strömavbrott, etc.) medan tidsinmatnin
 **Heartbeat-funktionalitet:**
 - Uppdateras automatiskt var 60:e sekund medan timer är aktiv
 - Sparas i databasen tillsammans med session state
-- Visas i crash recovery-dialogen som "Senaste aktivitet"
-- Hjälper dig uppskatta ungefär när krashen inträffade genom att jämföra "Tid sedan start" med "Tid sedan aktivitet"
+- Används för att beräkna estimerad krashtid (senaste heartbeat + 1 minut)
+- Visas i crash recovery-dialogen som "Estimerad krashtid" med exakt tidsstämpel
 
 **Edit Entry-funktioner:**
 - Ändra starttid, sluttid eller duration - de andra fälten uppdateras automatiskt
