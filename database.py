@@ -106,6 +106,115 @@ class TimeTrackerDB:
         cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
         return cursor.fetchone()
 
+    def get_all_tasks(self, search: str = None, active_only: bool = False) -> List[sqlite3.Row]:
+        """Get all tasks with optional search filter.
+
+        Args:
+            search: Optional search string to filter by name
+            active_only: If True, only return active tasks
+
+        Returns:
+            List of task rows
+        """
+        cursor = self.conn.cursor()
+        query = "SELECT * FROM tasks WHERE 1=1"
+        params = []
+
+        if active_only:
+            query += " AND active = 1"
+
+        if search:
+            query += " AND name LIKE ?"
+            params.append(f"%{search}%")
+
+        query += " ORDER BY name"
+
+        cursor.execute(query, params)
+        return cursor.fetchall()
+
+    def update_task(self, task_id: int, name: str, description: str = None) -> bool:
+        """Update a task's name and/or description.
+
+        Args:
+            task_id: ID of the task to update
+            name: New name for the task
+            description: New description (optional)
+
+        Returns:
+            True if update was successful, False otherwise
+        """
+        cursor = self.conn.cursor()
+        if description is not None:
+            cursor.execute(
+                "UPDATE tasks SET name = ?, description = ? WHERE id = ?",
+                (name, description, task_id)
+            )
+        else:
+            cursor.execute(
+                "UPDATE tasks SET name = ? WHERE id = ?",
+                (name, task_id)
+            )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def deactivate_task(self, task_id: int) -> bool:
+        """Deactivate a task.
+
+        Args:
+            task_id: ID of the task to deactivate
+
+        Returns:
+            True if deactivation was successful, False otherwise
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE tasks SET active = 0 WHERE id = ?", (task_id,))
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def activate_task(self, task_id: int) -> bool:
+        """Activate a task.
+
+        Args:
+            task_id: ID of the task to activate
+
+        Returns:
+            True if activation was successful, False otherwise
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE tasks SET active = 1 WHERE id = ?", (task_id,))
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def delete_task(self, task_id: int) -> Tuple[bool, str]:
+        """Delete a task if it has no logged time.
+
+        Args:
+            task_id: ID of the task to delete
+
+        Returns:
+            Tuple of (success: bool, error_message: str)
+        """
+        cursor = self.conn.cursor()
+
+        # Check if task has any time entries
+        cursor.execute(
+            "SELECT COUNT(*) as count FROM time_entries WHERE task_id = ?",
+            (task_id,)
+        )
+        count = cursor.fetchone()['count']
+
+        if count > 0:
+            return (False, f"Kan inte radera uppgift med {count} loggade tidsinmatningar. Inaktivera istället.")
+
+        # Delete the task
+        cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        self.conn.commit()
+
+        if cursor.rowcount > 0:
+            return (True, "")
+        else:
+            return (False, "Uppgiften hittades inte.")
+
     def start_time_entry(self, task_id: int, start_time: datetime = None) -> int:
         """Start a new time entry for a task."""
         if start_time is None:

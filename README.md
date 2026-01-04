@@ -6,6 +6,7 @@ En enkel och elegant time-tracker för Ubuntu/Linux med GTK-gränssnitt och smar
 
 ### Huvudfunktioner
 - **Tidsspårning**: Logga tid på olika uppgifter/projekt
+- **Hantera uppgifter**: Skapa, editera, inaktivera och ta bort uppgifter med sökfunktion
 - **Hantera tidsinmatningar**: Visa, redigera och ta bort befintliga tidsinmatningar med flexibla filter
 - **Smart unlock-hantering**: När du låser/stänger av datorn och sedan loggar in igen får du en dialog som frågar vad du vill göra med tiden du var borta
 - **Crash recovery**: Automatisk detektering av oväntat avslut med möjlighet att rädda eller editera förlorad tidsinmatning
@@ -22,6 +23,17 @@ När du kommer tillbaka till datorn efter att ha låst den visas en dialog som:
   1. **Fortsätt logga på samma uppgift** - tiden du var borta läggs till på uppgiften
   2. **Logga på en annan uppgift** - välj en annan uppgift att logga tiden på
   3. **Logga inte tiden** - skippa tiden helt
+
+### Hantera uppgifter
+Ett dedikerat fönster för att hantera alla dina uppgifter:
+- **Sökfunktion**: Filtrera uppgifter baserat på namn (sök efter delar av namnet)
+- **Visa inaktiva uppgifter**: Checkbox för att visa/dölja inaktiverade uppgifter
+- **Lista med uppgifter**: Visar uppgiftens namn, total loggad tid och status (Aktiv/Inaktiv)
+- **Lägg till uppgift**: Skapa nya uppgifter med namn och beskrivning
+- **Editera uppgift**: Ändra namn och beskrivning på befintliga uppgifter
+- **Inaktivera/Aktivera uppgift**: Markera uppgifter som inaktiva utan att förlora historik
+- **Ta bort uppgift**: Radera uppgifter (endast om de inte har någon loggad tid)
+  - Uppgifter med loggad tid kan inte raderas - inaktivera dem istället
 
 ### Hantera tidsinmatningar
 Ett dedikerat fönster för att hantera alla dina tidsinmatningar:
@@ -122,6 +134,17 @@ Eller hitta det i din applikationsmeny under "Beautiful Time Tracker".
 1. Klicka "Stoppa tidsinmatning"
 2. Tiden sparas automatiskt på uppgiften
 
+### Hantera uppgifter
+För att hantera dina uppgifter:
+1. Klicka på "Hantera uppgifter" i huvudfönstret
+2. Använd sökrutan för att filtrera uppgifter efter namn
+3. Markera "Visa inaktiva uppgifter" för att visa alla uppgifter
+4. Välj en uppgift i listan för att:
+   - **Editera** - Ändra namn och beskrivning
+   - **Inaktivera/Aktivera** - Dölj uppgiften från huvudlistan eller visa den igen
+   - **Ta bort** - Radera uppgiften (endast om den inte har loggad tid)
+5. Klicka "Lägg till" för att skapa en ny uppgift
+
 ### Hantera tidsinmatningar
 För att visa, redigera eller ta bort befintliga tidsinmatningar:
 1. Klicka på "Hantera tidsinmatningar" i huvudfönstret
@@ -159,12 +182,13 @@ All data sparas i:
 ### Filer
 - `timetracker.py` - Huvudapplikation, DBus-hantering och crash recovery
 - `main_window.py` - Huvudfönster med uppgiftslista och timer
+- `tasks_window.py` - Fönster för att hantera uppgifter med sök och filtrering
 - `entries_window.py` - Fönster för att hantera tidsinmatningar med filter
 - `unlock_dialog.py` - Dialog som visas efter unlock
 - `crash_recovery_dialog.py` - Dialog för crash recovery
 - `edit_entry_dialog.py` - Återanvändbar dialog för att editera tidsinmatningar
 - `tray_indicator.py` - System tray-indikator med meny
-- `database.py` - Databashantering (inkl. update/delete/query entries)
+- `database.py` - Databashantering (inkl. CRUD för tasks och entries)
 - `pyproject.toml` - Poetry-konfiguration och Python-beroenden
 - `install.sh` - Installationsskript
 - `timetracker.desktop` - Desktop-fil för autostart

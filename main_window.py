@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from database import TimeTrackerDB
 from entries_window import EntriesWindow
+from tasks_window import TasksWindow
 
 
 class MainWindow(Gtk.Window):
@@ -119,6 +120,10 @@ class MainWindow(Gtk.Window):
         new_task_button = Gtk.Button(label="Ny uppgift")
         new_task_button.connect("clicked", self._on_new_task_clicked)
         button_box.pack_start(new_task_button, True, True, 0)
+
+        manage_tasks_button = Gtk.Button(label="Hantera uppgifter")
+        manage_tasks_button.connect("clicked", self._on_manage_tasks_clicked)
+        button_box.pack_start(manage_tasks_button, True, True, 0)
 
         manage_entries_button = Gtk.Button(label="Hantera tidsinmatningar")
         manage_entries_button.connect("clicked", self._on_manage_entries_clicked)
@@ -236,6 +241,11 @@ class MainWindow(Gtk.Window):
                 )
                 error_dialog.run()
                 error_dialog.destroy()
+
+    def _on_manage_tasks_clicked(self, button):
+        """Handle manage tasks button click."""
+        tasks_window = TasksWindow(self.db, parent=self)
+        tasks_window.show_all()
 
     def _on_manage_entries_clicked(self, button):
         """Handle manage entries button click."""
