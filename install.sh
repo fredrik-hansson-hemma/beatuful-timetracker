@@ -5,6 +5,43 @@ set -e
 
 echo "Installing Beautiful Time Tracker..."
 
+# Install system dependencies required for pycairo
+echo "Checking for required system dependencies..."
+
+# Check if pkg-config is available and cairo can be found
+DEPS_NEEDED=false
+if ! command -v pkg-config &> /dev/null; then
+    echo "pkg-config is not installed."
+    DEPS_NEEDED=true
+elif ! pkg-config --exists cairo 2>/dev/null; then
+    echo "Cairo development libraries are not installed."
+    DEPS_NEEDED=true
+else
+    echo "System dependencies already installed."
+fi
+
+# Install dependencies if needed
+if [ "$DEPS_NEEDED" = true ]; then
+    if command -v apt-get &> /dev/null; then
+        echo "Installing system dependencies with apt-get..."
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config libcairo2-dev python3-dev
+    elif command -v dnf &> /dev/null; then
+        echo "Installing system dependencies with dnf..."
+        sudo dnf install -y gcc gcc-c++ pkg-config cairo-devel python3-devel
+    elif command -v pacman &> /dev/null; then
+        echo "Installing system dependencies with pacman..."
+        sudo pacman -S --noconfirm base-devel pkg-config cairo python
+    else
+        echo "Error: Could not detect package manager."
+        echo "Please install pkg-config and cairo development libraries manually:"
+        echo "  For Ubuntu/Debian: sudo apt-get install build-essential pkg-config libcairo2-dev python3-dev"
+        echo "  For Fedora: sudo dnf install gcc gcc-c++ pkg-config cairo-devel python3-devel"
+        echo "  For Arch: sudo pacman -S base-devel pkg-config cairo python"
+        exit 1
+    fi
+fi
+
 # Check if Poetry is installed
 if ! command -v poetry &> /dev/null; then
     echo "Poetry is not installed. Installing Poetry..."
