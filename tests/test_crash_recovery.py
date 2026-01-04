@@ -312,3 +312,154 @@ class TestCrashRecoveryScenarios:
         assert entry['duration_seconds'] == correct_duration
         assert entry['note'] == "Manually corrected after crash"
         assert entry['end_time'] is not None
+
+
+class TestHeartbeat:
+    """Tests for heartbeat functionality."""
+
+    @freeze_time("2024-01-15 10:00:00")
+    def test_heartbeat_set_on_start(self, db_with_tasks):
+        """Test that heartbeat is set when starting a time entry."""
+        db, tasks = db_with_tasks
+
+        # Start an entry
+        start_time = datetime(2024, 1, 15, 10, 0, 0)
+        entry_id = db.start_time_entry(tasks['programming'], start_time)
+
+        # Check that heartbeat was set to start_time
+        state = db.get_session_state()
+        assert state['last_heartbeat'] is not None
+        heartbeat = datetime.fromisoformat(state['last_heartbeat'])
+        assert heartbeat == start_time
+
+    @freeze_time("2024-01-15 10:00:00")
+    def test_heartbeat_cleared_on_stop(self, db_with_tasks):
+        """Test that heartbeat is cleared when stopping entry."""
+        db, tasks = db_with_tasks
+
+        # Start and stop an entry
+        entry_id = db.start_time_entry(tasks['programming'])
+
+        # Verify heartbeat is set
+        state = db.get_session_state()
+        assert state['last_heartbeat'] is not None
+
+        # Stop the entry
+        db.stop_time_entry(entry_id)
+
+        # Heartbeat should be cleared
+        state = db.get_session_state()
+        assert state['last_heartbeat'] is None
+
+    @freeze_time("2024-01-15 10:00:00")
+    def test_update_heartbeat(self, db_with_tasks):
+        """Test updating heartbeat."""
+        db, tasks = db_with_tasks
+
+        # Start an entry at 10:00:00
+        start_time = datetime(2024, 1, 15, 10, 0, 0)
+        entry_id = db.start_time_entry(tasks['programming'], start_time)
+
+        # Initial heartbeat should be start_time
+        state = db.get_session_state()
+        heartbeat1 = datetime.fromisoformat(state['last_heartbeat'])
+        assert heartbeat1 == start_time
+
+        # Update heartbeat at 10:01:00
+        with freeze_time("2024-01-15 10:01:00"):
+            new_heartbeat = datetime(2024, 1, 15, 10, 1, 0)
+            db.update_heartbeat(new_heartbeat)
+
+            # Verify heartbeat was updated
+            state = db.get_session_state()
+            heartbeat2 = datetime.fromisoformat(state['last_heartbeat'])
+            assert heartbeat2 == new_heartbeat
+            assert heartbeat2 > heartbeat1
+
+    @freeze_time("2024-01-15 10:00:00")
+    def test_heartbeat_helps_estimate_crash_time(self, db_with_tasks):
+        """Test that heartbeat helps estimate when crash occurred."""
+        db, tasks = db_with_tasks
+
+        # Simulate: User started tracking at 08:00
+        crash_start = datetime(2024, 1, 15, 8, 0, 0)
+        entry_id = db.start_time_entry(tasks['programming'], crash_start)
+
+        # Simulate: Heartbeat was updated at 09:00 (last known activity)
+        last_activity = datetime(2024, 1, 15, 9, 0, 0)
+        db.update_heartbeat(last_activity)
+
+        # Simulate: Now it's 10:00 and app restarts after crash
+        # Entry has been running since 08:00 (2 hours)
+        # But heartbeat shows activity at 09:00 (1 hour ago)
+
+        state = db.get_session_state()
+        active = db.get_active_entry()
+
+        # Entry shows 2 hours elapsed
+        start = datetime.fromisoformat(active['start_time'])
+        elapsed = datetime.now() - start
+        assert elapsed.total_seconds() == 7200  # 2 hours
+
+        # But heartbeat shows crash likely at ~09:00
+        heartbeat = datetime.fromisoformat(state['last_heartbeat'])
+        time_since_heartbeat = datetime.now() - heartbeat
+        assert time_since_heartbeat.total_seconds() == 3600  # 1 hour
+
+        # This tells user: entry started 2h ago, but last activity was 1h ago
+        # So crash probably happened ~1 hour ago
+
+    @freeze_time("2024-01-15 10:00:00")
+    def test_clear_heartbeat_method(self, db_with_tasks):
+        """Test clear_heartbeat method."""
+        db, tasks = db_with_tasks
+
+        # Start entry (sets heartbeat)
+        entry_id = db.start_time_entry(tasks['programming'])
+
+        state = db.get_session_state()
+        assert state['last_heartbeat'] is not None
+
+        # Clear heartbeat
+        db.clear_heartbeat()
+
+        state = db.get_session_state()
+        assert state['last_heartbeat'] is None
+
+    @freeze_time("2024-01-15 10:00:00")
+    def test_heartbeat_available_in_crash_recovery(self, db_with_tasks):
+        """Test that heartbeat is available for crash recovery logic."""
+        db, tasks = db_with_tasks
+
+        # Simulate crash scenario
+        crash_start = datetime(2024, 1, 14, 16, 0, 0)
+        entry_id = db.start_time_entry(tasks['programming'], crash_start)
+
+        # Update heartbeat to simulate periodic updates
+        last_heartbeat = datetime(2024, 1, 14, 17, 30, 0)
+        db.update_heartbeat(last_heartbeat)
+
+        # Get state and active entry (what crash recovery would do)
+        state = db.get_session_state()
+        active = db.get_active_entry()
+
+        # Verify both are available
+        assert active is not None
+        assert state['last_heartbeat'] is not None
+
+        # Build entry_data as crash recovery dialog would receive it
+        entry_data = {
+            'id': active['id'],
+            'task_id': active['task_id'],
+            'task_name': active['task_name'],
+            'start_time': active['start_time'],
+            'end_time': active['end_time'],
+            'duration_seconds': active['duration_seconds'],
+            'note': active['note'] if 'note' in active.keys() else None,
+            'last_heartbeat': state['last_heartbeat']
+        }
+
+        # Verify last_heartbeat is included and matches
+        assert entry_data['last_heartbeat'] is not None
+        stored_heartbeat = datetime.fromisoformat(entry_data['last_heartbeat'])
+        assert stored_heartbeat == last_heartbeat

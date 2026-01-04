@@ -23,6 +23,7 @@ class TimeTrackerApp:
         self.main_window = MainWindow(self.db)
         self.bus = SessionBus()
         self.lock_time = None
+        self.heartbeat_update_id = None
 
         # Setup system tray indicator
         self.tray = TrayIndicator(self)
@@ -33,6 +34,9 @@ class TimeTrackerApp:
 
         # Check if we were locked and need to show unlock dialog
         self._check_unlock_on_startup()
+
+        # Start heartbeat timer (updates every 60 seconds while tracking)
+        self._start_heartbeat_timer()
 
         # Show main window
         self.main_window.show_all()
@@ -193,6 +197,10 @@ class TimeTrackerApp:
         Args:
             orphaned_entry: The orphaned time entry from database
         """
+        # Get last heartbeat from session state
+        state = self.db.get_session_state()
+        last_heartbeat = state['last_heartbeat'] if state else None
+
         # Prepare entry data for dialog
         entry_data = {
             'id': orphaned_entry['id'],
@@ -201,7 +209,8 @@ class TimeTrackerApp:
             'start_time': orphaned_entry['start_time'],
             'end_time': orphaned_entry['end_time'],
             'duration_seconds': orphaned_entry['duration_seconds'],
-            'note': orphaned_entry.get('note')
+            'note': orphaned_entry.get('note'),
+            'last_heartbeat': last_heartbeat
         }
 
         # Show crash recovery dialog
@@ -255,6 +264,23 @@ class TimeTrackerApp:
 
         return False  # Don't repeat timeout
 
+    def _start_heartbeat_timer(self):
+        """Start the heartbeat update timer."""
+        if self.heartbeat_update_id:
+            GLib.source_remove(self.heartbeat_update_id)
+
+        # Update heartbeat every 60 seconds
+        self.heartbeat_update_id = GLib.timeout_add(60000, self._update_heartbeat)
+
+    def _update_heartbeat(self):
+        """Update heartbeat if tracking is active."""
+        active_entry = self.db.get_active_entry()
+
+        if active_entry:
+            self.db.update_heartbeat()
+
+        return True  # Continue calling
+
     def run(self):
         """Run the application."""
         # Handle Ctrl+C gracefully
@@ -267,6 +293,8 @@ class TimeTrackerApp:
 
     def cleanup(self):
         """Cleanup before exit."""
+        if self.heartbeat_update_id:
+            GLib.source_remove(self.heartbeat_update_id)
         self.tray.cleanup()
         self.main_window.cleanup()
         self.db.close()

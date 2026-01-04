@@ -60,6 +60,7 @@ class TimeTrackerDB:
                 active_task_id INTEGER,
                 lock_time TIMESTAMP,
                 last_entry_id INTEGER,
+                last_heartbeat TIMESTAMP,
                 FOREIGN KEY (active_task_id) REFERENCES tasks(id),
                 FOREIGN KEY (last_entry_id) REFERENCES time_entries(id)
             )
@@ -67,9 +68,16 @@ class TimeTrackerDB:
 
         # Initialize session state if not exists
         cursor.execute("""
-            INSERT OR IGNORE INTO session_state (id, active_task_id, lock_time, last_entry_id)
-            VALUES (1, NULL, NULL, NULL)
+            INSERT OR IGNORE INTO session_state (id, active_task_id, lock_time, last_entry_id, last_heartbeat)
+            VALUES (1, NULL, NULL, NULL, NULL)
         """)
+
+        # Migration: Add last_heartbeat column if it doesn't exist (for existing databases)
+        try:
+            cursor.execute("SELECT last_heartbeat FROM session_state LIMIT 1")
+        except sqlite3.OperationalError:
+            # Column doesn't exist, add it
+            cursor.execute("ALTER TABLE session_state ADD COLUMN last_heartbeat TIMESTAMP")
 
         self.conn.commit()
 
@@ -110,10 +118,10 @@ class TimeTrackerDB:
         )
         entry_id = cursor.lastrowid
 
-        # Update session state
+        # Update session state and set initial heartbeat
         cursor.execute(
-            "UPDATE session_state SET active_task_id = ?, last_entry_id = ? WHERE id = 1",
-            (task_id, entry_id)
+            "UPDATE session_state SET active_task_id = ?, last_entry_id = ?, last_heartbeat = ? WHERE id = 1",
+            (task_id, entry_id, start_time)
         )
 
         self.conn.commit()
@@ -139,9 +147,9 @@ class TimeTrackerDB:
             (end_time, duration, entry_id)
         )
 
-        # Clear active task from session state
+        # Clear active task and heartbeat from session state
         cursor.execute(
-            "UPDATE session_state SET active_task_id = NULL, last_entry_id = NULL WHERE id = 1"
+            "UPDATE session_state SET active_task_id = NULL, last_entry_id = NULL, last_heartbeat = NULL WHERE id = 1"
         )
 
         self.conn.commit()
@@ -225,6 +233,30 @@ class TimeTrackerDB:
         """Clear the lock time."""
         cursor = self.conn.cursor()
         cursor.execute("UPDATE session_state SET lock_time = NULL WHERE id = 1")
+        self.conn.commit()
+
+    def update_heartbeat(self, heartbeat_time: datetime = None):
+        """Update the last heartbeat timestamp.
+
+        This is called periodically while tracking to help estimate crash time.
+
+        Args:
+            heartbeat_time: Timestamp to record. If None, uses current time.
+        """
+        if heartbeat_time is None:
+            heartbeat_time = datetime.now()
+
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE session_state SET last_heartbeat = ? WHERE id = 1",
+            (heartbeat_time,)
+        )
+        self.conn.commit()
+
+    def clear_heartbeat(self):
+        """Clear the heartbeat timestamp."""
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE session_state SET last_heartbeat = NULL WHERE id = 1")
         self.conn.commit()
 
     def get_active_entry(self) -> Optional[sqlite3.Row]:

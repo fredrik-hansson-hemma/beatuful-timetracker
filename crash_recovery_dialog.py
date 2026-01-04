@@ -102,6 +102,23 @@ class CrashRecoveryDialog(Gtk.Dialog):
         elapsed_label.set_xalign(0)
         details_box.pack_start(elapsed_label, False, False, 0)
 
+        # Last heartbeat (if available)
+        if self.entry_data.get('last_heartbeat'):
+            last_heartbeat = datetime.fromisoformat(self.entry_data['last_heartbeat'])
+            heartbeat_label = Gtk.Label()
+            heartbeat_label.set_markup(f"<b>Senaste aktivitet:</b> {last_heartbeat.strftime('%Y-%m-%d %H:%M:%S')}")
+            heartbeat_label.set_xalign(0)
+            details_box.pack_start(heartbeat_label, False, False, 0)
+
+            # Time since last heartbeat
+            time_since = datetime.now() - last_heartbeat
+            since_hours = int(time_since.total_seconds() // 3600)
+            since_minutes = int((time_since.total_seconds() % 3600) // 60)
+            since_label = Gtk.Label()
+            since_label.set_markup(f"<b>Tid sedan aktivitet:</b> {since_hours}h {since_minutes}m")
+            since_label.set_xalign(0)
+            details_box.pack_start(since_label, False, False, 0)
+
         details_frame.add(details_box)
         content.pack_start(details_frame, False, False, 10)
 

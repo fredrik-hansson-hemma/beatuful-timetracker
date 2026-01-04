@@ -36,13 +36,20 @@ Programmet minimeras till system tray i toppanelen och ger dig:
 ### Crash Recovery
 Om programmet avslutas oväntat (krasch, strömavbrott, etc.) medan tidsinmatning pågår, detekteras detta automatiskt vid nästa start:
 - **Automatisk detektering**: Hittar "hängande" tidsinmatningar (äldre än 5 minuter)
-- **Varningsdialog**: Visar vilken uppgift som var aktiv och hur länge sedan
+- **Heartbeat-system**: Programmet uppdaterar en timestamp var 60:e sekund medan tidsinmatning pågår, vilket hjälper till att uppskatta när krashen inträffade
+- **Varningsdialog**: Visar vilken uppgift som var aktiv, hur länge sedan start, och när senaste aktivitet registrerades
 - **Fyra alternativ**:
   1. **Fortsätt logga** - Behåll entry:n aktiv och fortsätt ticka (inklusive crash-tid)
   2. **Stoppa nu** - Stoppa entry:n nu och logga all tid sedan start (inklusive crash-period)
   3. **Editera** - Öppnar en editor där du kan ställa in exakta tider manuellt
   4. **Radera** - Ta bort tidsinmatningen helt
 - **Återanvändbar editor**: Edit Entry-dialogen kan användas för att korrigera starttid, sluttid, duration och uppgift
+
+**Heartbeat-funktionalitet:**
+- Uppdateras automatiskt var 60:e sekund medan timer är aktiv
+- Sparas i databasen tillsammans med session state
+- Visas i crash recovery-dialogen som "Senaste aktivitet"
+- Hjälper dig uppskatta ungefär när krashen inträffade genom att jämföra "Tid sedan start" med "Tid sedan aktivitet"
 
 **Edit Entry-funktioner:**
 - Ändra starttid, sluttid eller duration - de andra fälten uppdateras automatiskt
@@ -267,6 +274,7 @@ poetry run pytest tests/test_database.py::TestTaskManagement::test_add_task
   - Update/delete entries
   - Alla fyra recovery-scenarios (continue, stop, delete, edit)
   - Time threshold detection (5 minuter)
+  - Heartbeat-funktionalitet (set, update, clear, crash estimation)
 
 ## Licens
 
