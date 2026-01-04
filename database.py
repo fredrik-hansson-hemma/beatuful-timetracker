@@ -29,14 +29,28 @@ class TimeTrackerDB:
         """Create necessary database tables."""
         cursor = self.conn.cursor()
 
+        # Categories table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                color TEXT,
+                active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Tasks table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
                 description TEXT,
+                category_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                active INTEGER DEFAULT 1
+                active INTEGER DEFAULT 1,
+                FOREIGN KEY (category_id) REFERENCES categories(id)
             )
         """)
 
@@ -72,21 +86,29 @@ class TimeTrackerDB:
             VALUES (1, NULL, NULL, NULL, NULL)
         """)
 
-        # Migration: Add last_heartbeat column if it doesn't exist (for existing databases)
-        try:
-            cursor.execute("SELECT last_heartbeat FROM session_state LIMIT 1")
-        except sqlite3.OperationalError:
-            # Column doesn't exist, add it
-            cursor.execute("ALTER TABLE session_state ADD COLUMN last_heartbeat TIMESTAMP")
+        # Create default categories if none exist
+        cursor.execute("SELECT COUNT(*) as count FROM categories")
+        if cursor.fetchone()['count'] == 0:
+            default_categories = [
+                ("Fakturerbar tid", "Tid som faktureras till kund", "#4CAF50"),
+                ("Utbildning", "Kompetensutveckling och lärande", "#2196F3"),
+                ("Interna möten", "Möten med kollegor och ledning", "#FF9800"),
+                ("Interna projekt", "Projekt som inte faktureras", "#9C27B0"),
+                ("Övrigt", "Övriga aktiviteter", "#757575")
+            ]
+            cursor.executemany(
+                "INSERT INTO categories (name, description, color) VALUES (?, ?, ?)",
+                default_categories
+            )
 
         self.conn.commit()
 
-    def add_task(self, name: str, description: str = "") -> int:
+    def add_task(self, name: str, description: str = "", category_id: int = None) -> int:
         """Add a new task."""
         cursor = self.conn.cursor()
         cursor.execute(
-            "INSERT INTO tasks (name, description) VALUES (?, ?)",
-            (name, description)
+            "INSERT INTO tasks (name, description, category_id) VALUES (?, ?, ?)",
+            (name, description, category_id)
         )
         self.conn.commit()
         return cursor.lastrowid
@@ -132,28 +154,23 @@ class TimeTrackerDB:
         cursor.execute(query, params)
         return cursor.fetchall()
 
-    def update_task(self, task_id: int, name: str, description: str = None) -> bool:
-        """Update a task's name and/or description.
+    def update_task(self, task_id: int, name: str, description: str = None, category_id: int = None) -> bool:
+        """Update a task's name, description, and/or category.
 
         Args:
             task_id: ID of the task to update
             name: New name for the task
             description: New description (optional)
+            category_id: New category ID (optional)
 
         Returns:
             True if update was successful, False otherwise
         """
         cursor = self.conn.cursor()
-        if description is not None:
-            cursor.execute(
-                "UPDATE tasks SET name = ?, description = ? WHERE id = ?",
-                (name, description, task_id)
-            )
-        else:
-            cursor.execute(
-                "UPDATE tasks SET name = ? WHERE id = ?",
-                (name, task_id)
-            )
+        cursor.execute(
+            "UPDATE tasks SET name = ?, description = ?, category_id = ? WHERE id = ?",
+            (name, description, category_id, task_id)
+        )
         self.conn.commit()
         return cursor.rowcount > 0
 
@@ -214,6 +231,137 @@ class TimeTrackerDB:
             return (True, "")
         else:
             return (False, "Uppgiften hittades inte.")
+
+    # Category management methods
+
+    def add_category(self, name: str, description: str = "", color: str = "#757575") -> int:
+        """Add a new category.
+
+        Args:
+            name: Category name
+            description: Category description (optional)
+            color: Hex color code for the category (optional)
+
+        Returns:
+            ID of the created category
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO categories (name, description, color) VALUES (?, ?, ?)",
+            (name, description, color)
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def get_all_categories(self, search: str = None, active_only: bool = False) -> List[sqlite3.Row]:
+        """Get all categories with optional search filter.
+
+        Args:
+            search: Optional search string to filter by name
+            active_only: If True, only return active categories
+
+        Returns:
+            List of category rows
+        """
+        cursor = self.conn.cursor()
+        query = "SELECT * FROM categories WHERE 1=1"
+        params = []
+
+        if active_only:
+            query += " AND active = 1"
+
+        if search:
+            query += " AND name LIKE ?"
+            params.append(f"%{search}%")
+
+        query += " ORDER BY name"
+
+        cursor.execute(query, params)
+        return cursor.fetchall()
+
+    def get_category_by_id(self, category_id: int) -> Optional[sqlite3.Row]:
+        """Get a category by ID."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM categories WHERE id = ?", (category_id,))
+        return cursor.fetchone()
+
+    def update_category(self, category_id: int, name: str, description: str = None, color: str = None) -> bool:
+        """Update a category's name, description, and/or color.
+
+        Args:
+            category_id: ID of the category to update
+            name: New name for the category
+            description: New description (optional)
+            color: New color (optional)
+
+        Returns:
+            True if update was successful, False otherwise
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE categories SET name = ?, description = ?, color = ? WHERE id = ?",
+            (name, description, color, category_id)
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def deactivate_category(self, category_id: int) -> bool:
+        """Deactivate a category.
+
+        Args:
+            category_id: ID of the category to deactivate
+
+        Returns:
+            True if deactivation was successful, False otherwise
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE categories SET active = 0 WHERE id = ?", (category_id,))
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def activate_category(self, category_id: int) -> bool:
+        """Activate a category.
+
+        Args:
+            category_id: ID of the category to activate
+
+        Returns:
+            True if activation was successful, False otherwise
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE categories SET active = 1 WHERE id = ?", (category_id,))
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def delete_category(self, category_id: int) -> Tuple[bool, str]:
+        """Delete a category if it has no associated tasks.
+
+        Args:
+            category_id: ID of the category to delete
+
+        Returns:
+            Tuple of (success: bool, error_message: str)
+        """
+        cursor = self.conn.cursor()
+
+        # Check if category has any tasks
+        cursor.execute(
+            "SELECT COUNT(*) as count FROM tasks WHERE category_id = ?",
+            (category_id,)
+        )
+        count = cursor.fetchone()['count']
+
+        if count > 0:
+            return (False, f"Kan inte radera kategori med {count} kopplade uppgifter. Inaktivera istället.")
+
+        # Delete the category
+        cursor.execute("DELETE FROM categories WHERE id = ?", (category_id,))
+        self.conn.commit()
+
+        if cursor.rowcount > 0:
+            return (True, "")
+        else:
+            return (False, "Kategorin hittades inte.")
 
     def start_time_entry(self, task_id: int, start_time: datetime = None) -> int:
         """Start a new time entry for a task."""

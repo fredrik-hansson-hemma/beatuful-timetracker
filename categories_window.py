@@ -1,23 +1,23 @@
-"""Window for managing tasks - view, add, edit, deactivate, and delete."""
+"""Window for managing categories - view, add, edit, deactivate, and delete."""
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GLib
+from gi.repository import Gtk, Gdk, GLib
 from datetime import datetime
 from typing import Optional
 from database import TimeTrackerDB
 
 
-class TasksWindow(Gtk.Window):
-    """Window for managing tasks."""
+class CategoriesWindow(Gtk.Window):
+    """Window for managing categories."""
 
     def __init__(self, db: TimeTrackerDB, parent=None):
-        """Initialize the tasks window.
+        """Initialize the categories window.
 
         Args:
             db: Database instance
             parent: Parent window (optional)
         """
-        super().__init__(title="Hantera uppgifter")
+        super().__init__(title="Hantera kategorier")
         self.db = db
         self.parent_window = parent
 
@@ -31,8 +31,8 @@ class TasksWindow(Gtk.Window):
         # Build UI
         self._build_ui()
 
-        # Load tasks
-        self._refresh_tasks()
+        # Load categories
+        self._refresh_categories()
 
     def _build_ui(self):
         """Build the user interface."""
@@ -47,17 +47,17 @@ class TasksWindow(Gtk.Window):
         search_box.pack_start(search_label, False, False, 0)
 
         self.search_entry = Gtk.Entry()
-        self.search_entry.set_placeholder_text("Filtrera på uppgiftens namn...")
+        self.search_entry.set_placeholder_text("Filtrera på kategorinamn...")
         self.search_entry.connect("changed", self._on_search_changed)
         search_box.pack_start(self.search_entry, True, True, 0)
 
         # Show inactive checkbox
-        self.show_inactive_check = Gtk.CheckButton(label="Visa inaktiva uppgifter")
+        self.show_inactive_check = Gtk.CheckButton(label="Visa inaktiva kategorier")
         self.show_inactive_check.connect("toggled", self._on_show_inactive_toggled)
         search_box.pack_start(self.show_inactive_check, False, False, 0)
 
-        # Tasks list
-        list_frame = Gtk.Frame(label="Uppgifter")
+        # Categories list
+        list_frame = Gtk.Frame(label="Kategorier")
         main_box.pack_start(list_frame, True, True, 0)
 
         # ScrolledWindow for the TreeView
@@ -65,42 +65,41 @@ class TasksWindow(Gtk.Window):
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         list_frame.add(scrolled)
 
-        # TreeView for tasks
-        # Columns: id, name, category_name, total_time, active, description, category_id
-        self.tasks_store = Gtk.ListStore(int, str, str, str, bool, str, int)
-        self.tasks_tree = Gtk.TreeView(model=self.tasks_store)
-        self.tasks_tree.set_headers_visible(True)
-        scrolled.add(self.tasks_tree)
+        # TreeView for categories
+        # Columns: id, name, description, color, active
+        self.categories_store = Gtk.ListStore(int, str, str, str, bool)
+        self.categories_tree = Gtk.TreeView(model=self.categories_store)
+        self.categories_tree.set_headers_visible(True)
+        scrolled.add(self.categories_tree)
 
-        # Columns
+        # Color column with colored cell
+        renderer_color = Gtk.CellRendererText()
+        column_color = Gtk.TreeViewColumn("Färg", renderer_color)
+        column_color.set_cell_data_func(renderer_color, self._color_cell_data_func)
+        column_color.set_resizable(True)
+        self.categories_tree.append_column(column_color)
+
         # Name column
         renderer_name = Gtk.CellRendererText()
-        column_name = Gtk.TreeViewColumn("Uppgift", renderer_name, text=1)
+        column_name = Gtk.TreeViewColumn("Kategori", renderer_name, text=1)
         column_name.set_resizable(True)
         column_name.set_expand(True)
         column_name.set_sort_column_id(1)
-        self.tasks_tree.append_column(column_name)
+        self.categories_tree.append_column(column_name)
 
-        # Category column
-        renderer_category = Gtk.CellRendererText()
-        column_category = Gtk.TreeViewColumn("Kategori", renderer_category, text=2)
-        column_category.set_resizable(True)
-        column_category.set_sort_column_id(2)
-        self.tasks_tree.append_column(column_category)
-
-        # Total time column
-        renderer_time = Gtk.CellRendererText()
-        column_time = Gtk.TreeViewColumn("Total tid", renderer_time, text=3)
-        column_time.set_resizable(True)
-        column_time.set_sort_column_id(3)
-        self.tasks_tree.append_column(column_time)
+        # Description column
+        renderer_desc = Gtk.CellRendererText()
+        column_desc = Gtk.TreeViewColumn("Beskrivning", renderer_desc, text=2)
+        column_desc.set_resizable(True)
+        column_desc.set_expand(True)
+        self.categories_tree.append_column(column_desc)
 
         # Active column
         renderer_active = Gtk.CellRendererText()
         column_active = Gtk.TreeViewColumn("Status", renderer_active)
         column_active.set_cell_data_func(renderer_active, self._active_cell_data_func)
         column_active.set_resizable(True)
-        self.tasks_tree.append_column(column_active)
+        self.categories_tree.append_column(column_active)
 
         # Action buttons
         button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
@@ -108,11 +107,11 @@ class TasksWindow(Gtk.Window):
         main_box.pack_start(button_box, False, False, 0)
 
         self.btn_add = Gtk.Button(label="Lägg till")
-        self.btn_add.connect("clicked", self._on_add_task)
+        self.btn_add.connect("clicked", self._on_add_category)
         button_box.pack_start(self.btn_add, False, False, 0)
 
         self.btn_edit = Gtk.Button(label="Editera")
-        self.btn_edit.connect("clicked", self._on_edit_task)
+        self.btn_edit.connect("clicked", self._on_edit_category)
         self.btn_edit.set_sensitive(False)
         button_box.pack_start(self.btn_edit, False, False, 0)
 
@@ -122,7 +121,7 @@ class TasksWindow(Gtk.Window):
         button_box.pack_start(self.btn_toggle_active, False, False, 0)
 
         self.btn_delete = Gtk.Button(label="Ta bort")
-        self.btn_delete.connect("clicked", self._on_delete_task)
+        self.btn_delete.connect("clicked", self._on_delete_category)
         self.btn_delete.set_sensitive(False)
         button_box.pack_start(self.btn_delete, False, False, 0)
 
@@ -132,8 +131,14 @@ class TasksWindow(Gtk.Window):
         button_box.pack_end(btn_close, False, False, 0)
 
         # Selection handling
-        selection = self.tasks_tree.get_selection()
+        selection = self.categories_tree.get_selection()
         selection.connect("changed", self._on_selection_changed)
+
+    def _color_cell_data_func(self, column, cell, model, iter, data):
+        """Custom cell renderer for color."""
+        color = model[iter][3]
+        cell.set_property("text", "  ██  ")
+        cell.set_property("foreground", color)
 
     def _active_cell_data_func(self, column, cell, model, iter, data):
         """Custom cell renderer for active status."""
@@ -166,48 +171,32 @@ class TasksWindow(Gtk.Window):
         # Use a small delay to avoid refreshing on every keystroke
         if hasattr(self, '_search_timeout'):
             GLib.source_remove(self._search_timeout)
-        self._search_timeout = GLib.timeout_add(300, self._refresh_tasks)
+        self._search_timeout = GLib.timeout_add(300, self._refresh_categories)
 
     def _on_show_inactive_toggled(self, checkbox):
         """Handle show inactive checkbox toggle."""
-        self._refresh_tasks()
+        self._refresh_categories()
 
-    def _refresh_tasks(self):
-        """Refresh the tasks list with current filters."""
-        self.tasks_store.clear()
+    def _refresh_categories(self):
+        """Refresh the categories list with current filters."""
+        self.categories_store.clear()
 
         search_text = self.search_entry.get_text().strip()
         show_inactive = self.show_inactive_check.get_active()
 
-        # Get tasks from database
+        # Get categories from database
         if search_text:
-            tasks = self.db.get_all_tasks(search=search_text, active_only=not show_inactive)
+            categories = self.db.get_all_categories(search=search_text, active_only=not show_inactive)
         else:
-            tasks = self.db.get_all_tasks(active_only=not show_inactive)
+            categories = self.db.get_all_categories(active_only=not show_inactive)
 
-        for task in tasks:
-            # Calculate total time
-            total_seconds = self.db.get_task_total_time(task['id'])
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            time_str = f"{hours}h {minutes}m"
-
-            # Get category name
-            category_name = ""
-            category_id = task['category_id'] if task['category_id'] else 0
-            if task['category_id']:
-                category = self.db.get_category_by_id(task['category_id'])
-                if category:
-                    category_name = category['name']
-
-            self.tasks_store.append([
-                task['id'],
-                task['name'],
-                category_name,
-                time_str,
-                bool(task['active']),
-                task['description'] or "",
-                category_id
+        for category in categories:
+            self.categories_store.append([
+                category['id'],
+                category['name'],
+                category['description'] or "",
+                category['color'] or "#757575",
+                bool(category['active'])
             ])
 
         # Remove timeout if exists
@@ -216,10 +205,10 @@ class TasksWindow(Gtk.Window):
 
         return False  # Don't call again
 
-    def _on_add_task(self, button):
-        """Handle add task button."""
+    def _on_add_category(self, button):
+        """Handle add category button."""
         dialog = Gtk.Dialog(
-            title="Lägg till uppgift",
+            title="Lägg till kategori",
             transient_for=self,
             flags=0
         )
@@ -252,18 +241,16 @@ class TasksWindow(Gtk.Window):
         desc_entry = Gtk.Entry()
         content.pack_start(desc_entry, False, False, 0)
 
-        # Category selection
-        category_label = Gtk.Label(label="Kategori:")
-        category_label.set_xalign(0)
-        content.pack_start(category_label, False, False, 0)
+        # Color button
+        color_label = Gtk.Label(label="Färg:")
+        color_label.set_xalign(0)
+        content.pack_start(color_label, False, False, 0)
 
-        category_combo = Gtk.ComboBoxText()
-        category_combo.append("0", "(Ingen kategori)")
-        categories = self.db.get_all_categories(active_only=True)
-        for category in categories:
-            category_combo.append(str(category['id']), category['name'])
-        category_combo.set_active(0)
-        content.pack_start(category_combo, False, False, 0)
+        color_button = Gtk.ColorButton()
+        rgba = Gdk.RGBA()
+        rgba.parse("#757575")
+        color_button.set_rgba(rgba)
+        content.pack_start(color_button, False, False, 0)
 
         dialog.set_default_response(Gtk.ResponseType.OK)
         dialog.show_all()
@@ -271,42 +258,45 @@ class TasksWindow(Gtk.Window):
         response = dialog.run()
         name = name_entry.get_text().strip()
         description = desc_entry.get_text().strip()
-        category_id_str = category_combo.get_active_id()
-        category_id = int(category_id_str) if category_id_str and category_id_str != "0" else None
+        rgba = color_button.get_rgba()
+        color = rgba.to_string()
+        # Convert to hex format
+        color = "#{:02x}{:02x}{:02x}".format(
+            int(rgba.red * 255),
+            int(rgba.green * 255),
+            int(rgba.blue * 255)
+        )
         dialog.destroy()
 
         if response == Gtk.ResponseType.OK and name:
             try:
-                self.db.add_task(name, description, category_id)
-                self._refresh_tasks()
-                # Notify parent to refresh if needed
-                if hasattr(self.parent_window, '_load_tasks'):
-                    self.parent_window._load_tasks()
+                self.db.add_category(name, description, color)
+                self._refresh_categories()
             except Exception as e:
                 error_dialog = Gtk.MessageDialog(
                     transient_for=self,
                     flags=0,
                     message_type=Gtk.MessageType.ERROR,
                     buttons=Gtk.ButtonsType.OK,
-                    text="Kunde inte skapa uppgift"
+                    text="Kunde inte skapa kategori"
                 )
                 error_dialog.format_secondary_text(str(e))
                 error_dialog.run()
                 error_dialog.destroy()
 
-    def _on_edit_task(self, button):
-        """Handle edit task button."""
-        selection = self.tasks_tree.get_selection()
+    def _on_edit_category(self, button):
+        """Handle edit category button."""
+        selection = self.categories_tree.get_selection()
         model, tree_iter = selection.get_selected()
 
         if tree_iter:
-            task_id = model[tree_iter][0]
+            category_id = model[tree_iter][0]
             current_name = model[tree_iter][1]
-            current_desc = model[tree_iter][5]
-            current_category_id = model[tree_iter][6]
+            current_desc = model[tree_iter][2]
+            current_color = model[tree_iter][3]
 
             dialog = Gtk.Dialog(
-                title="Editera uppgift",
+                title="Editera kategori",
                 transient_for=self,
                 flags=0
             )
@@ -341,24 +331,16 @@ class TasksWindow(Gtk.Window):
             desc_entry.set_text(current_desc)
             content.pack_start(desc_entry, False, False, 0)
 
-            # Category selection
-            category_label = Gtk.Label(label="Kategori:")
-            category_label.set_xalign(0)
-            content.pack_start(category_label, False, False, 0)
+            # Color button
+            color_label = Gtk.Label(label="Färg:")
+            color_label.set_xalign(0)
+            content.pack_start(color_label, False, False, 0)
 
-            category_combo = Gtk.ComboBoxText()
-            category_combo.append("0", "(Ingen kategori)")
-            categories = self.db.get_all_categories(active_only=False)  # Show all for editing
-            for category in categories:
-                category_combo.append(str(category['id']), category['name'])
-
-            # Set current category
-            if current_category_id and current_category_id > 0:
-                category_combo.set_active_id(str(current_category_id))
-            else:
-                category_combo.set_active(0)
-
-            content.pack_start(category_combo, False, False, 0)
+            color_button = Gtk.ColorButton()
+            rgba = Gdk.RGBA()
+            rgba.parse(current_color)
+            color_button.set_rgba(rgba)
+            content.pack_start(color_button, False, False, 0)
 
             dialog.set_default_response(Gtk.ResponseType.OK)
             dialog.show_all()
@@ -366,24 +348,25 @@ class TasksWindow(Gtk.Window):
             response = dialog.run()
             name = name_entry.get_text().strip()
             description = desc_entry.get_text().strip()
-            category_id_str = category_combo.get_active_id()
-            category_id = int(category_id_str) if category_id_str and category_id_str != "0" else None
+            rgba = color_button.get_rgba()
+            color = "#{:02x}{:02x}{:02x}".format(
+                int(rgba.red * 255),
+                int(rgba.green * 255),
+                int(rgba.blue * 255)
+            )
             dialog.destroy()
 
             if response == Gtk.ResponseType.OK and name:
                 try:
-                    self.db.update_task(task_id, name, description, category_id)
-                    self._refresh_tasks()
-                    # Notify parent to refresh
-                    if hasattr(self.parent_window, '_load_tasks'):
-                        self.parent_window._load_tasks()
+                    self.db.update_category(category_id, name, description, color)
+                    self._refresh_categories()
                 except Exception as e:
                     error_dialog = Gtk.MessageDialog(
                         transient_for=self,
                         flags=0,
                         message_type=Gtk.MessageType.ERROR,
                         buttons=Gtk.ButtonsType.OK,
-                        text="Kunde inte uppdatera uppgift"
+                        text="Kunde inte uppdatera kategori"
                     )
                     error_dialog.format_secondary_text(str(e))
                     error_dialog.run()
@@ -391,48 +374,44 @@ class TasksWindow(Gtk.Window):
 
     def _on_toggle_active(self, button):
         """Handle toggle active/inactive button."""
-        selection = self.tasks_tree.get_selection()
+        selection = self.categories_tree.get_selection()
         model, tree_iter = selection.get_selected()
 
         if tree_iter:
-            task_id = model[tree_iter][0]
-            task_name = model[tree_iter][1]
-            is_active = model[tree_iter][3]
+            category_id = model[tree_iter][0]
+            category_name = model[tree_iter][1]
+            is_active = model[tree_iter][4]
 
             if is_active:
                 # Deactivate
-                success = self.db.deactivate_task(task_id)
+                success = self.db.deactivate_category(category_id)
                 action = "inaktiverad"
             else:
                 # Activate
-                success = self.db.activate_task(task_id)
+                success = self.db.activate_category(category_id)
                 action = "aktiverad"
 
             if success:
-                self._refresh_tasks()
-                # Notify parent to refresh
-                if hasattr(self.parent_window, '_load_tasks'):
-                    self.parent_window._load_tasks()
+                self._refresh_categories()
             else:
                 error_dialog = Gtk.MessageDialog(
                     transient_for=self,
                     flags=0,
                     message_type=Gtk.MessageType.ERROR,
                     buttons=Gtk.ButtonsType.OK,
-                    text=f"Kunde inte markera uppgift som {action}"
+                    text=f"Kunde inte markera kategori som {action}"
                 )
                 error_dialog.run()
                 error_dialog.destroy()
 
-    def _on_delete_task(self, button):
-        """Handle delete task button."""
-        selection = self.tasks_tree.get_selection()
+    def _on_delete_category(self, button):
+        """Handle delete category button."""
+        selection = self.categories_tree.get_selection()
         model, tree_iter = selection.get_selected()
 
         if tree_iter:
-            task_id = model[tree_iter][0]
-            task_name = model[tree_iter][1]
-            total_time = model[tree_iter][2]
+            category_id = model[tree_iter][0]
+            category_name = model[tree_iter][1]
 
             # Confirmation dialog
             dialog = Gtk.MessageDialog(
@@ -443,10 +422,9 @@ class TasksWindow(Gtk.Window):
                 text="Bekräfta borttagning"
             )
             dialog.format_secondary_text(
-                f"Är du säker på att du vill ta bort uppgiften?\n\n"
-                f"Uppgift: {task_name}\n"
-                f"Total loggad tid: {total_time}\n\n"
-                f"OBS: Uppgifter med loggad tid kan inte raderas, "
+                f"Är du säker på att du vill ta bort kategorin?\n\n"
+                f"Kategori: {category_name}\n\n"
+                f"OBS: Kategorier med kopplade uppgifter kan inte raderas, "
                 f"men kan inaktiveras istället."
             )
 
@@ -454,20 +432,17 @@ class TasksWindow(Gtk.Window):
             dialog.destroy()
 
             if response == Gtk.ResponseType.YES:
-                success, error_msg = self.db.delete_task(task_id)
+                success, error_msg = self.db.delete_category(category_id)
 
                 if success:
-                    self._refresh_tasks()
-                    # Notify parent to refresh
-                    if hasattr(self.parent_window, '_load_tasks'):
-                        self.parent_window._load_tasks()
+                    self._refresh_categories()
                 else:
                     error_dialog = Gtk.MessageDialog(
                         transient_for=self,
                         flags=0,
                         message_type=Gtk.MessageType.ERROR,
                         buttons=Gtk.ButtonsType.OK,
-                        text="Kunde inte radera uppgift"
+                        text="Kunde inte radera kategori"
                     )
                     error_dialog.format_secondary_text(error_msg)
                     error_dialog.run()

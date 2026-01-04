@@ -7,6 +7,7 @@ from typing import Optional
 from database import TimeTrackerDB
 from entries_window import EntriesWindow
 from tasks_window import TasksWindow
+from categories_window import CategoriesWindow
 
 
 class MainWindow(Gtk.Window):
@@ -124,6 +125,10 @@ class MainWindow(Gtk.Window):
         manage_tasks_button = Gtk.Button(label="Hantera uppgifter")
         manage_tasks_button.connect("clicked", self._on_manage_tasks_clicked)
         button_box.pack_start(manage_tasks_button, True, True, 0)
+
+        manage_categories_button = Gtk.Button(label="Hantera kategorier")
+        manage_categories_button.connect("clicked", self._on_manage_categories_clicked)
+        button_box.pack_start(manage_categories_button, True, True, 0)
 
         manage_entries_button = Gtk.Button(label="Hantera tidsinmatningar")
         manage_entries_button.connect("clicked", self._on_manage_entries_clicked)
@@ -246,6 +251,11 @@ class MainWindow(Gtk.Window):
         """Handle manage tasks button click."""
         tasks_window = TasksWindow(self.db, parent=self)
         tasks_window.show_all()
+
+    def _on_manage_categories_clicked(self, button):
+        """Handle manage categories button click."""
+        categories_window = CategoriesWindow(self.db, parent=self)
+        categories_window.show_all()
 
     def _on_manage_entries_clicked(self, button):
         """Handle manage entries button click."""
