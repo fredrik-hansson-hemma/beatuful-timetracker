@@ -22,7 +22,7 @@ fi
 
 # Install Python dependencies with Poetry
 echo "Installing Python dependencies with Poetry..."
-poetry install --no-dev
+poetry install --only main
 
 # Create autostart directory if it doesn't exist
 AUTOSTART_DIR="$HOME/.config/autostart"
