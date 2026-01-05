@@ -2,7 +2,7 @@
 Type=Application
 Name=Beautiful Time Tracker
 Comment=Track time spent on tasks
-Exec=/usr/bin/python3 /home/user/beatuful-timetracker/timetracker.py
+Exec=/home/fredrik/projekt/beatuful-timetracker/run.sh
 Icon=org.gnome.clocks
 Terminal=false
 Categories=Utility;Office;

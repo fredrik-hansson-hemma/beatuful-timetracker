@@ -21,6 +21,8 @@ class TimeTrackerDB:
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
         self.db_path = db_path
+        # Note: We handle datetime as strings (ISO format) to avoid deprecation warnings
+        # and maintain compatibility across Python versions
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
         self._create_tables()
@@ -371,14 +373,14 @@ class TimeTrackerDB:
         cursor = self.conn.cursor()
         cursor.execute(
             "INSERT INTO time_entries (task_id, start_time) VALUES (?, ?)",
-            (task_id, start_time)
+            (task_id, start_time.isoformat())
         )
         entry_id = cursor.lastrowid
 
         # Update session state and set initial heartbeat
         cursor.execute(
             "UPDATE session_state SET active_task_id = ?, last_entry_id = ?, last_heartbeat = ? WHERE id = 1",
-            (task_id, entry_id, start_time)
+            (task_id, entry_id, start_time.isoformat())
         )
 
         self.conn.commit()
@@ -401,7 +403,7 @@ class TimeTrackerDB:
 
         cursor.execute(
             "UPDATE time_entries SET end_time = ?, duration_seconds = ? WHERE id = ?",
-            (end_time, duration, entry_id)
+            (end_time.isoformat(), duration, entry_id)
         )
 
         # Clear active task and heartbeat from session state
@@ -439,7 +441,7 @@ class TimeTrackerDB:
             UPDATE time_entries
             SET task_id = ?, start_time = ?, end_time = ?, duration_seconds = ?, note = ?
             WHERE id = ?
-        """, (task_id, start_time, end_time, duration_seconds, note, entry_id))
+        """, (task_id, start_time.isoformat(), end_time.isoformat() if end_time else None, duration_seconds, note, entry_id))
 
         self.conn.commit()
         return True
@@ -482,7 +484,7 @@ class TimeTrackerDB:
         cursor = self.conn.cursor()
         cursor.execute(
             "UPDATE session_state SET lock_time = ? WHERE id = 1",
-            (lock_time,)
+            (lock_time.isoformat(),)
         )
         self.conn.commit()
 
@@ -506,7 +508,7 @@ class TimeTrackerDB:
         cursor = self.conn.cursor()
         cursor.execute(
             "UPDATE session_state SET last_heartbeat = ? WHERE id = 1",
-            (heartbeat_time,)
+            (heartbeat_time.isoformat(),)
         )
         self.conn.commit()
 

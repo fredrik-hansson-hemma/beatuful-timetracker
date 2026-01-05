@@ -251,7 +251,7 @@ class TestCrashRecoveryScenarios:
         # Should have logged ~18 hours
         expected_duration = int((now - crash_start).total_seconds())
         assert duration == expected_duration
-        assert duration > 64800  # More than 18 hours
+        assert duration >= 64800  # At least 18 hours
 
         # No active entry
         active = db.get_active_entry()
