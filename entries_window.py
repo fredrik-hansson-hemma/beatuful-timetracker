@@ -295,23 +295,19 @@ class EntriesWindow(Gtk.Window):
             entry = cursor.fetchone()
 
             if entry:
-                dialog = EditEntryDialog(self.db, parent=self, entry_data=dict(entry))
+                dialog = EditEntryDialog(parent=self, db=self.db, entry_data=dict(entry))
                 response = dialog.run()
 
                 if response == Gtk.ResponseType.OK:
-                    result = dialog.get_result()
+                    result = dialog.get_entry_data()
                     if result:
-                        # Update entry
-                        start_dt = datetime.strptime(result['start_time'], "%Y-%m-%d %H:%M:%S")
-                        end_dt = datetime.strptime(result['end_time'], "%Y-%m-%d %H:%M:%S")
-                        duration = int((end_dt - start_dt).total_seconds())
-
+                        # Update entry - result already contains datetime objects
                         success = self.db.update_time_entry(
                             entry_id,
                             result['task_id'],
-                            start_dt,
-                            end_dt,
-                            duration,
+                            result['start_time'],
+                            result['end_time'],
+                            result['duration_seconds'],
                             result['note']
                         )
 

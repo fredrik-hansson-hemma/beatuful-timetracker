@@ -1,7 +1,7 @@
 """Database management for time tracking."""
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 
 
