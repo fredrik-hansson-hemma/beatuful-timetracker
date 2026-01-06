@@ -451,7 +451,7 @@ class MainWindow(Gtk.Window):
 
         category_combo = Gtk.ComboBoxText()
         category_combo.append(None, "Ingen kategori")
-        categories = self.db.get_categories()
+        categories = self.db.get_all_categories()
         for cat in categories:
             if cat['active']:
                 category_combo.append(str(cat['id']), cat['name'])
