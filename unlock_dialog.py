@@ -102,9 +102,12 @@ class UnlockDialog(Gtk.Dialog):
 
         self.radio_skip = Gtk.RadioButton.new_with_label_from_widget(
             self.radio_continue,
-            "Logga inte tiden (skippa)"
+            "Logga inte tiden (t.ex. lunch, rast)"
         )
         content.pack_start(self.radio_skip, False, False, 5)
+
+        # Set default selection to CONTINUE (always log time unless user explicitly skips)
+        self.radio_continue.set_active(True)
 
         # Connect radio button signals
         self.radio_other.connect("toggled", self._on_radio_toggled)
@@ -127,6 +130,10 @@ class UnlockDialog(Gtk.Dialog):
             Tuple of (action, task_id) where:
             - action: 'continue', 'other', or 'skip'
             - task_id: ID of task to log to (if action is 'other'), otherwise None
+
+        Note: By default, time is ALWAYS logged (continue is pre-selected).
+        User must explicitly choose 'skip' to not log time.
+        If user cancels, time is logged to the current task by default.
         """
         response = self.run()
 
@@ -138,10 +145,11 @@ class UnlockDialog(Gtk.Dialog):
                 if task_id:
                     return ('other', int(task_id))
                 else:
-                    # No other task available or selected
+                    # No other task available or selected - default to continue
                     return ('continue', None)
             elif self.radio_skip.get_active():
                 return ('skip', None)
 
-        # User cancelled or closed dialog
-        return ('skip', None)
+        # User cancelled or closed dialog - DEFAULT: continue with current task
+        # This ensures time is logged by default unless user explicitly cancels
+        return ('continue', None)

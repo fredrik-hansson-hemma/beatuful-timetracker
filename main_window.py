@@ -69,8 +69,36 @@ class MainWindow(Gtk.Window):
         current_frame.add(current_box)
         vbox.pack_start(current_frame, False, False, 10)
 
-        self.current_task_label = Gtk.Label(label="Ingen aktiv uppgift")
-        current_box.pack_start(self.current_task_label, False, False, 0)
+        # Task search box
+        task_search_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        current_box.pack_start(task_search_box, False, False, 0)
+
+        task_search_label = Gtk.Label(label="Loggar tid på:")
+        task_search_box.pack_start(task_search_label, False, False, 0)
+
+        # Entry with completion for task search
+        self.task_search_entry = Gtk.Entry()
+        self.task_search_entry.set_placeholder_text("Ingen aktiv uppgift")
+        self.task_search_entry.set_hexpand(True)
+        task_search_box.pack_start(self.task_search_entry, True, True, 0)
+
+        # Setup completion
+        self.task_completion = Gtk.EntryCompletion()
+        self.task_completion_store = Gtk.ListStore(int, str)  # task_id, task_name
+        self.task_completion.set_model(self.task_completion_store)
+        self.task_completion.set_text_column(1)
+        self.task_completion.set_minimum_key_length(1)
+        self.task_completion.set_inline_completion(True)
+        self.task_search_entry.set_completion(self.task_completion)
+
+        # Connect signals
+        self.task_search_entry.connect("activate", self._on_task_search_activate)
+        self.task_search_entry.connect("focus-in-event", self._on_task_search_focus_in)
+        self.task_search_entry.connect("focus-out-event", self._on_task_search_focus_out)
+        self.task_completion.connect("match-selected", self._on_task_completion_match)
+
+        # Flag to track if user is actively typing
+        self.user_is_typing = False
 
         self.timer_label = Gtk.Label(label="00:00:00")
         self.timer_label.set_markup("<span size='xx-large' font_family='monospace'>00:00:00</span>")
@@ -142,6 +170,7 @@ class MainWindow(Gtk.Window):
     def _load_tasks(self):
         """Load tasks from database into the list."""
         self.task_store.clear()
+        self.task_completion_store.clear()
         tasks = self.db.get_tasks()
 
         for task in tasks:
@@ -152,6 +181,10 @@ class MainWindow(Gtk.Window):
 
             self.task_store.append([task['id'], task['name'], time_str])
 
+            # Add active tasks to completion
+            if task['active']:
+                self.task_completion_store.append([task['id'], task['name']])
+
     def _check_active_entry(self):
         """Check if there's an active time entry and update UI."""
         active_entry = self.db.get_active_entry()
@@ -159,13 +192,17 @@ class MainWindow(Gtk.Window):
         if active_entry:
             self.current_task_id = active_entry['task_id']
             self.current_entry_id = active_entry['id']
-            self.current_task_label.set_text(f"Loggar tid på: {active_entry['task_name']}")
+            # Update search entry only if user is not typing
+            if not self.user_is_typing:
+                self.task_search_entry.set_text(active_entry['task_name'])
             self.stop_button.set_sensitive(True)
             self.start_button.set_sensitive(False)
         else:
             self.current_task_id = None
             self.current_entry_id = None
-            self.current_task_label.set_text("Ingen aktiv uppgift")
+            # Update search entry only if user is not typing
+            if not self.user_is_typing:
+                self.task_search_entry.set_text("")
             self.stop_button.set_sensitive(False)
             self.start_button.set_sensitive(True)
 
@@ -295,7 +332,7 @@ class MainWindow(Gtk.Window):
 
         task = self.db.get_task_by_id(task_id)
         if task:
-            self.current_task_label.set_text(f"Loggar tid på: {task['name']}")
+            self.task_search_entry.set_text(task['name'])
 
         self.stop_button.set_sensitive(True)
         self.start_button.set_sensitive(False)
@@ -311,7 +348,7 @@ class MainWindow(Gtk.Window):
             self.current_entry_id = None
             self.current_task_id = None
 
-            self.current_task_label.set_text("Ingen aktiv uppgift")
+            self.task_search_entry.set_text("")
             self.stop_button.set_sensitive(False)
             self.start_button.set_sensitive(True)
 
@@ -320,6 +357,126 @@ class MainWindow(Gtk.Window):
             # Update tray
             if self.tray:
                 self.tray.update_state()
+
+    def _on_task_search_focus_in(self, widget, event):
+        """Handle focus in on search entry."""
+        self.user_is_typing = True
+        return False
+
+    def _on_task_search_focus_out(self, widget, event):
+        """Handle focus out on search entry."""
+        self.user_is_typing = False
+        # Restore current task name
+        self._check_active_entry()
+        return False
+
+    def _on_task_completion_match(self, completion, model, iter):
+        """Handle selection from completion dropdown."""
+        task_id = model[iter][0]
+        task_name = model[iter][1]
+        self._switch_to_task(task_id, task_name)
+        return True
+
+    def _on_task_search_activate(self, entry):
+        """Handle Enter key in search entry."""
+        text = entry.get_text().strip()
+        if not text:
+            return
+
+        # Check if task exists
+        tasks = self.db.get_tasks()
+        matching_task = None
+        for task in tasks:
+            if task['name'].lower() == text.lower() and task['active']:
+                matching_task = task
+                break
+
+        if matching_task:
+            # Task exists, switch to it
+            self._switch_to_task(matching_task['id'], matching_task['name'])
+        else:
+            # Task doesn't exist, ask to create
+            self._ask_create_new_task(text)
+
+    def _switch_to_task(self, task_id, task_name):
+        """Switch time tracking to a different task."""
+        # Stop current task if any
+        if self.current_entry_id:
+            self.db.stop_time_entry(self.current_entry_id)
+
+        # Start new task
+        entry_id = self.db.start_time_entry(task_id)
+        self.current_task_id = task_id
+        self.current_entry_id = entry_id
+
+        # Update UI
+        self.user_is_typing = False
+        self._check_active_entry()
+        self._load_tasks()
+
+        # Update tray
+        if self.tray:
+            self.tray.update_state()
+
+    def _ask_create_new_task(self, task_name):
+        """Ask user if they want to create a new task."""
+        dialog = Gtk.Dialog(
+            title="Skapa ny uppgift",
+            parent=self,
+            modal=True,
+            destroy_with_parent=True
+        )
+        dialog.add_button("Avbryt", Gtk.ResponseType.CANCEL)
+        dialog.add_button("Skapa", Gtk.ResponseType.OK)
+
+        content = dialog.get_content_area()
+        content.set_spacing(10)
+        content.set_margin_top(20)
+        content.set_margin_bottom(20)
+        content.set_margin_start(20)
+        content.set_margin_end(20)
+
+        # Question
+        question_label = Gtk.Label()
+        question_label.set_markup(f"Uppgiften <b>{task_name}</b> finns inte.\nVill du skapa den?")
+        content.pack_start(question_label, False, False, 0)
+
+        # Category selection
+        category_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        category_box.set_margin_top(10)
+        content.pack_start(category_box, False, False, 0)
+
+        category_label = Gtk.Label(label="Kategori:")
+        category_box.pack_start(category_label, False, False, 0)
+
+        category_combo = Gtk.ComboBoxText()
+        category_combo.append(None, "Ingen kategori")
+        categories = self.db.get_categories()
+        for cat in categories:
+            if cat['active']:
+                category_combo.append(str(cat['id']), cat['name'])
+        category_combo.set_active(0)
+        category_box.pack_start(category_combo, True, True, 0)
+
+        dialog.show_all()
+        response = dialog.run()
+
+        if response == Gtk.ResponseType.OK:
+            # Get selected category
+            category_id_str = category_combo.get_active_id()
+            category_id = int(category_id_str) if category_id_str else None
+
+            # Create the task
+            task_id = self.db.add_task(task_name, category_id=category_id)
+            dialog.destroy()
+
+            # Switch to the new task
+            self._switch_to_task(task_id, task_name)
+        else:
+            dialog.destroy()
+            # User cancelled, restore current task in entry
+            self.user_is_typing = False
+            self._check_active_entry()
 
     def _on_delete_event(self, widget, event):
         """Handle window close - hide instead of destroying."""
