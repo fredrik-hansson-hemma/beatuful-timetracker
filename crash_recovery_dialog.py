@@ -97,8 +97,9 @@ class CrashRecoveryDialog(Gtk.Dialog):
         elapsed = datetime.now() - start_time
         hours = int(elapsed.total_seconds() // 3600)
         minutes = int((elapsed.total_seconds() % 3600) // 60)
+        seconds = int(elapsed.total_seconds() % 60)
         elapsed_label = Gtk.Label()
-        elapsed_label.set_markup(f"<b>Tid sedan start:</b> {hours}h {minutes}m")
+        elapsed_label.set_markup(f"<b>Tid sedan start:</b> {hours}:{minutes:02d}:{seconds:02d}")
         elapsed_label.set_xalign(0)
         details_box.pack_start(elapsed_label, False, False, 0)
 

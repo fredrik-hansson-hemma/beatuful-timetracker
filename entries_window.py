@@ -236,7 +236,8 @@ class EntriesWindow(Gtk.Window):
             if entry['duration_seconds']:
                 hours = entry['duration_seconds'] // 3600
                 minutes = (entry['duration_seconds'] % 3600) // 60
-                duration = f"{hours}h {minutes}m"
+                seconds = entry['duration_seconds'] % 60
+                duration = f"{hours}:{minutes:02d}:{seconds:02d}"
             else:
                 duration = "—"
 

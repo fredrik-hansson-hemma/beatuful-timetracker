@@ -56,7 +56,8 @@ class UnlockDialog(Gtk.Dialog):
         # Duration info
         hours = int(self.locked_duration.total_seconds() // 3600)
         minutes = int((self.locked_duration.total_seconds() % 3600) // 60)
-        duration_text = f"Du var borta i {hours} timmar och {minutes} minuter"
+        seconds = int(self.locked_duration.total_seconds() % 60)
+        duration_text = f"Du var borta i {hours}:{minutes:02d}:{seconds:02d}"
 
         duration_label = Gtk.Label(label=duration_text)
         content.pack_start(duration_label, False, False, 0)

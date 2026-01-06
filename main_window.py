@@ -177,7 +177,8 @@ class MainWindow(Gtk.Window):
             total_seconds = self.db.get_task_total_time(task['id'])
             hours = total_seconds // 3600
             minutes = (total_seconds % 3600) // 60
-            time_str = f"{hours}h {minutes}m"
+            seconds = total_seconds % 60
+            time_str = f"{hours}:{minutes:02d}:{seconds:02d}"
 
             self.task_store.append([task['id'], task['name'], time_str])
 
