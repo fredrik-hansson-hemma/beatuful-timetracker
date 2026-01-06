@@ -1,32 +1,38 @@
-"""Dialog shown when unlocking to assign time spent while away."""
+"""Unified dialog for handling time when user has been away (unlock or crash)."""
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GLib
+from gi.repository import Gtk
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Tuple
 from database import TimeTrackerDB
 
 
-class UnlockDialog(Gtk.Dialog):
-    """Dialog for assigning time after unlocking the computer."""
+class AwayTimeDialog(Gtk.Dialog):
+    """Unified dialog for handling away time - both unlock and crash scenarios."""
 
-    def __init__(self, db: TimeTrackerDB, task_name: str, locked_duration: timedelta):
-        """Initialize the unlock dialog.
+    def __init__(self, db: TimeTrackerDB, task_name: str, away_duration: timedelta,
+                 is_crash: bool = False, start_time: Optional[datetime] = None):
+        """Initialize the away time dialog.
 
         Args:
             db: Database instance
-            task_name: Name of the task that was active when locked
-            locked_duration: How long the computer was locked
+            task_name: Name of the task that was active
+            away_duration: How long the user was away
+            is_crash: True if this is crash recovery, False if unlock from lock screen
+            start_time: When tracking started (for crash recovery display)
         """
+        title = "Crash Recovery - Oväntat avslut" if is_crash else "Tidsinmatning - Du är tillbaka!"
         super().__init__(
-            title="Tidsinmatning - Du är tillbaka!",
+            title=title,
             modal=True,
             destroy_with_parent=True
         )
 
         self.db = db
         self.task_name = task_name
-        self.locked_duration = locked_duration
+        self.away_duration = away_duration
+        self.is_crash = is_crash
+        self.start_time = start_time
         self.result_task_id = None
         self.result_action = None  # 'continue', 'other', or 'skip'
 
@@ -48,28 +54,64 @@ class UnlockDialog(Gtk.Dialog):
         content.set_margin_start(20)
         content.set_margin_end(20)
 
-        # Header
-        header = Gtk.Label()
-        header.set_markup("<span size='large' weight='bold'>Välkommen tillbaka!</span>")
-        content.pack_start(header, False, False, 0)
+        # Header - different based on scenario
+        if self.is_crash:
+            header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15)
+            icon = Gtk.Image.new_from_icon_name("dialog-warning", Gtk.IconSize.DIALOG)
+            header_box.pack_start(icon, False, False, 0)
+
+            header_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+            header = Gtk.Label()
+            header.set_markup("<span size='large' weight='bold'>Programmet avslutades oväntat</span>")
+            header.set_xalign(0)
+            header_vbox.pack_start(header, False, False, 0)
+
+            subheader = Gtk.Label()
+            subheader.set_markup("<span size='small'>En pågående tidsinmatning hittades från förra sessionen</span>")
+            subheader.set_xalign(0)
+            subheader.get_style_context().add_class("dim-label")
+            header_vbox.pack_start(subheader, False, False, 0)
+
+            header_box.pack_start(header_vbox, True, True, 0)
+            content.pack_start(header_box, False, False, 0)
+
+            # Separator
+            content.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 5)
+        else:
+            header = Gtk.Label()
+            header.set_markup("<span size='large' weight='bold'>Välkommen tillbaka!</span>")
+            content.pack_start(header, False, False, 0)
 
         # Duration info
-        hours = int(self.locked_duration.total_seconds() // 3600)
-        minutes = int((self.locked_duration.total_seconds() % 3600) // 60)
-        seconds = int(self.locked_duration.total_seconds() % 60)
-        duration_text = f"Du var borta i {hours}:{minutes:02d}:{seconds:02d}"
+        hours = int(self.away_duration.total_seconds() // 3600)
+        minutes = int((self.away_duration.total_seconds() % 3600) // 60)
+        seconds = int(self.away_duration.total_seconds() % 60)
+
+        if self.is_crash:
+            duration_text = f"Tid sedan kraschen: {hours}:{minutes:02d}:{seconds:02d}"
+            if self.start_time:
+                duration_label = Gtk.Label()
+                duration_label.set_markup(f"<b>Starttid:</b> {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                duration_label.set_xalign(0)
+                content.pack_start(duration_label, False, False, 0)
+        else:
+            duration_text = f"Du var borta i {hours}:{minutes:02d}:{seconds:02d}"
 
         duration_label = Gtk.Label(label=duration_text)
         content.pack_start(duration_label, False, False, 0)
 
         # Task info
         task_info = Gtk.Label()
-        task_info.set_markup(f"Du loggade tid på uppgiften: <b>{self.task_name}</b>")
+        if self.is_crash:
+            task_info.set_markup(f"<b>Aktiv uppgift vid krasch:</b> {self.task_name}")
+        else:
+            task_info.set_markup(f"Du loggade tid på uppgiften: <b>{self.task_name}</b>")
+        task_info.set_xalign(0 if self.is_crash else 0.5)
         task_info.set_margin_top(10)
         content.pack_start(task_info, False, False, 0)
 
         # Question
-        question = Gtk.Label(label="Vad vill du göra med tiden du var borta?")
+        question = Gtk.Label(label="Vad vill du göra med tiden?")
         question.set_margin_top(20)
         content.pack_start(question, False, False, 0)
 
@@ -124,7 +166,7 @@ class UnlockDialog(Gtk.Dialog):
         """Enable/disable task combo based on radio selection."""
         self.task_combo.set_sensitive(self.radio_other.get_active())
 
-    def run_and_get_result(self) -> tuple[Optional[str], Optional[int]]:
+    def run_and_get_result(self) -> Tuple[Optional[str], Optional[int]]:
         """Run dialog and return the user's choice.
 
         Returns:

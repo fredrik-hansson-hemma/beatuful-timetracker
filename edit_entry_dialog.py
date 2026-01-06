@@ -77,6 +77,7 @@ class EditEntryDialog(Gtk.Dialog):
         self.start_entry = Gtk.Entry()
         self.start_entry.set_placeholder_text("ÅÅÅÅ-MM-DD HH:MM:SS")
         self.start_entry.connect("changed", self._on_start_changed)
+        self.start_entry.connect("focus-out-event", self._on_start_focus_out)
         start_box.pack_start(self.start_entry, True, True, 0)
         content.pack_start(start_box, False, False, 0)
 
@@ -90,6 +91,7 @@ class EditEntryDialog(Gtk.Dialog):
         self.end_entry = Gtk.Entry()
         self.end_entry.set_placeholder_text("ÅÅÅÅ-MM-DD HH:MM:SS")
         self.end_entry.connect("changed", self._on_end_changed)
+        self.end_entry.connect("focus-out-event", self._on_end_focus_out)
         end_box.pack_start(self.end_entry, True, True, 0)
         content.pack_start(end_box, False, False, 0)
 
@@ -199,11 +201,51 @@ class EditEntryDialog(Gtk.Dialog):
         seconds = int(self.seconds_spin.get_value())
         return hours * 3600 + minutes * 60 + seconds
 
+    def _smart_format_time(self, text: str) -> str:
+        """Smart format time input: 8 -> 8:00:00, 8:1 -> 8:10:00, etc."""
+        # Only process if the text looks like it's just a time part (no date)
+        if ' ' in text or len(text) > 8:
+            return text
+
+        # Remove any non-digit and non-colon characters
+        cleaned = ''.join(c for c in text if c.isdigit() or c == ':')
+
+        if not cleaned or cleaned == ':':
+            return text
+
+        parts = cleaned.split(':')
+
+        if len(parts) == 1:
+            # Just hours: "8" -> "8:00:00"
+            return f"{parts[0]}:00:00"
+        elif len(parts) == 2:
+            # Hours and partial minutes: "8:" -> "8:00:00", "8:1" -> "8:10:00"
+            hours = parts[0]
+            mins = parts[1] if parts[1] else "00"
+            # If single digit minute, assume it's tens: "1" -> "10"
+            if len(mins) == 1:
+                mins = mins + "0"
+            return f"{hours}:{mins}:00"
+        elif len(parts) == 3:
+            # Hours, minutes, and partial seconds
+            hours = parts[0]
+            mins = parts[1] if parts[1] else "00"
+            secs = parts[2] if parts[2] else "00"
+            # If single digit, assume it's tens
+            if len(mins) == 1:
+                mins = mins + "0"
+            if len(secs) == 1:
+                secs = secs + "0"
+            return f"{hours}:{mins}:{secs}"
+
+        return text
+
     def _on_start_changed(self, widget):
-        """Handle start time change - update duration."""
+        """Handle start time change - update duration (no formatting here)."""
         if self._updating:
             return
 
+        # Update duration
         try:
             start_text = self.start_entry.get_text()
             end_text = self.end_entry.get_text()
@@ -221,12 +263,34 @@ class EditEntryDialog(Gtk.Dialog):
         except ValueError:
             # Invalid datetime format, ignore
             pass
+
+    def _on_start_focus_out(self, widget, event):
+        """Apply smart formatting when leaving start time field."""
+        if self._updating:
+            return False
+
+        start_text = self.start_entry.get_text()
+
+        # Check if we should apply time formatting (only format time part)
+        if ' ' in start_text:
+            parts = start_text.rsplit(' ', 1)
+            if len(parts) == 2:
+                date_part, time_part = parts
+                formatted_time = self._smart_format_time(time_part)
+                if formatted_time != time_part:
+                    self._updating = True
+                    new_text = f"{date_part} {formatted_time}"
+                    self.start_entry.set_text(new_text)
+                    self._updating = False
+
+        return False
 
     def _on_end_changed(self, widget):
-        """Handle end time change - update duration."""
+        """Handle end time change - update duration (no formatting here)."""
         if self._updating:
             return
 
+        # Update duration
         try:
             start_text = self.start_entry.get_text()
             end_text = self.end_entry.get_text()
@@ -244,6 +308,27 @@ class EditEntryDialog(Gtk.Dialog):
         except ValueError:
             # Invalid datetime format, ignore
             pass
+
+    def _on_end_focus_out(self, widget, event):
+        """Apply smart formatting when leaving end time field."""
+        if self._updating:
+            return False
+
+        end_text = self.end_entry.get_text()
+
+        # Check if we should apply time formatting (only format time part)
+        if ' ' in end_text:
+            parts = end_text.rsplit(' ', 1)
+            if len(parts) == 2:
+                date_part, time_part = parts
+                formatted_time = self._smart_format_time(time_part)
+                if formatted_time != time_part:
+                    self._updating = True
+                    new_text = f"{date_part} {formatted_time}"
+                    self.end_entry.set_text(new_text)
+                    self._updating = False
+
+        return False
 
     def _on_duration_changed(self, widget):
         """Handle duration change - update end time."""

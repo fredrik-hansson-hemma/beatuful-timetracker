@@ -9,9 +9,8 @@ from datetime import datetime, timedelta
 from pydbus import SessionBus
 from database import TimeTrackerDB
 from main_window import MainWindow
-from unlock_dialog import UnlockDialog
+from away_time_dialog import AwayTimeDialog
 from tray_indicator import TrayIndicator
-from crash_recovery_dialog import CrashRecoveryDialog
 
 
 class TimeTrackerApp:
@@ -147,8 +146,8 @@ class TimeTrackerApp:
             self.db.clear_lock_time()
             return False
 
-        # Show dialog
-        dialog = UnlockDialog(self.db, task['name'], locked_duration)
+        # Show dialog - is_crash=False for unlock scenario
+        dialog = AwayTimeDialog(self.db, task['name'], locked_duration, is_crash=False)
         action, other_task_id = dialog.run_and_get_result()
         dialog.destroy()
 
@@ -198,47 +197,48 @@ class TimeTrackerApp:
         Args:
             orphaned_entry: The orphaned time entry from database
         """
-        # Get last heartbeat from session state
-        state = self.db.get_session_state()
-        last_heartbeat = state['last_heartbeat'] if state else None
+        # Calculate time since crash
+        start_time = datetime.fromisoformat(orphaned_entry['start_time'])
+        now = datetime.now()
+        crash_duration = now - start_time
 
-        # Prepare entry data for dialog
-        entry_data = {
-            'id': orphaned_entry['id'],
-            'task_id': orphaned_entry['task_id'],
-            'task_name': orphaned_entry['task_name'],
-            'start_time': orphaned_entry['start_time'],
-            'end_time': orphaned_entry['end_time'],
-            'duration_seconds': orphaned_entry['duration_seconds'],
-            'note': orphaned_entry.get('note'),
-            'last_heartbeat': last_heartbeat
-        }
-
-        # Show crash recovery dialog
-        dialog = CrashRecoveryDialog(self.db, entry_data)
-        action, edited_data = dialog.run_and_get_result()
+        # Show unified dialog - is_crash=True for crash scenario
+        dialog = AwayTimeDialog(
+            self.db,
+            orphaned_entry['task_name'],
+            crash_duration,
+            is_crash=True,
+            start_time=start_time
+        )
+        action, other_task_id = dialog.run_and_get_result()
         dialog.destroy()
 
-        now = datetime.now()
-
-        # Handle user's choice
+        # Handle user's choice - same logic as unlock
         if action == 'continue':
-            # Just let the entry continue being active - do nothing!
-            # The timer will continue to tick and include crash time
+            # Continue logging - entry remains active, will log all time since start
             print(f"Crash recovery: Continuing tracking on task {orphaned_entry['task_id']}")
 
-        elif action == 'stop':
-            # Stop the entry now (logs all time since start)
-            self.db.stop_time_entry(orphaned_entry['id'], now)
-            print(f"Crash recovery: Stopped entry, logged all time")
+        elif action == 'other':
+            # Log crash time to a different task
+            # Stop the orphaned entry at crash time (we use start_time as approximation)
+            self.db.stop_time_entry(orphaned_entry['id'], start_time)
 
-        elif action == 'delete':
-            # Delete the orphaned entry
+            # Create entry for crash time on the other task
+            entry_id = self.db.start_time_entry(other_task_id, start_time)
+            self.db.stop_time_entry(entry_id, now)
+
+            # Resume tracking on the original task
+            self.main_window.start_tracking(orphaned_entry['task_id'])
+            print(f"Crash recovery: Logged time to different task")
+
+        elif action == 'skip':
+            # Don't log the crash time - just delete the orphaned entry
             self.db.delete_time_entry(orphaned_entry['id'])
-            print(f"Crash recovery: Deleted orphaned entry")
+            print(f"Crash recovery: Skipped/deleted orphaned entry")
 
-        elif action == 'edit':
-            # Update entry with edited data
+        # Old edit action removed - users can edit entries via the entries window
+        if False:  # Keeping old code structure for reference
+            edited_data = None
             if edited_data:
                 success = self.db.update_time_entry(
                     edited_data['id'],

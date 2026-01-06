@@ -5,9 +5,9 @@ from gi.repository import Gtk, GLib, Gio
 from datetime import datetime, timedelta
 from typing import Optional
 from database import TimeTrackerDB
-from entries_window import EntriesWindow
 from tasks_window import TasksWindow
 from categories_window import CategoriesWindow
+from edit_entry_dialog import EditEntryDialog
 
 
 class MainWindow(Gtk.Window):
@@ -23,8 +23,9 @@ class MainWindow(Gtk.Window):
         self.timer_label_update_id = None
         self.tray = None  # Will be set by TimeTrackerApp
 
-        self.set_default_size(600, 400)
+        self.set_default_size(800, 600)
         self.set_position(Gtk.WindowPosition.CENTER)
+        self.set_resizable(True)
 
         # Connect close event to minimize to tray instead
         self.connect("delete-event", self._on_delete_event)
@@ -32,6 +33,13 @@ class MainWindow(Gtk.Window):
         self._build_ui()
         self._load_tasks()
         self._check_active_entry()
+
+        # Load entries with "today" filter by default
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        self.current_start_date = today
+        self.current_end_date = today
+        self._refresh_entries()
+        self._update_summary()
 
         # Update timer every second
         self._start_timer_update()
@@ -110,45 +118,83 @@ class MainWindow(Gtk.Window):
         self.stop_button.connect("clicked", self._on_stop_clicked)
         current_box.pack_start(self.stop_button, False, False, 5)
 
-        # Task list section
-        task_frame = Gtk.Frame(label="Uppgifter")
-        task_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        task_box.set_margin_top(10)
-        task_box.set_margin_bottom(10)
-        task_box.set_margin_start(10)
-        task_box.set_margin_end(10)
-        task_frame.add(task_box)
-        vbox.pack_start(task_frame, True, True, 0)
+        # Summary label - shows total time for today
+        self.summary_label = Gtk.Label()
+        self.summary_label.set_markup("<b>Totalt idag: 0:00:00</b>")
+        self.summary_label.set_margin_top(10)
+        vbox.pack_start(self.summary_label, False, False, 0)
 
-        # Scrolled window for task list
+        # Expandable entries section
+        expander = Gtk.Expander(label="Tidsinmatningar")
+        expander.set_expanded(False)
+        vbox.pack_start(expander, True, True, 0)
+
+        # Container for the expandable content
+        expander_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        expander_box.set_margin_top(10)
+        expander_box.set_margin_bottom(10)
+        expander_box.set_margin_start(10)
+        expander_box.set_margin_end(10)
+        expander.add(expander_box)
+
+        # Filter buttons
+        filter_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        expander_box.pack_start(filter_box, False, False, 0)
+
+        filter_label = Gtk.Label(label="Filter:")
+        filter_box.pack_start(filter_label, False, False, 0)
+
+        self.btn_today = Gtk.Button(label="Idag")
+        self.btn_today.connect("clicked", self._on_filter_today)
+        filter_box.pack_start(self.btn_today, False, False, 0)
+
+        self.btn_this_week = Gtk.Button(label="Denna vecka")
+        self.btn_this_week.connect("clicked", self._on_filter_this_week)
+        filter_box.pack_start(self.btn_this_week, False, False, 0)
+
+        self.btn_this_month = Gtk.Button(label="Denna månad")
+        self.btn_this_month.connect("clicked", self._on_filter_this_month)
+        filter_box.pack_start(self.btn_this_month, False, False, 0)
+
+        self.btn_all = Gtk.Button(label="Allt")
+        self.btn_all.connect("clicked", self._on_filter_all)
+        filter_box.pack_start(self.btn_all, False, False, 0)
+
+        # Scrolled window for entries list
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        scrolled.set_min_content_height(200)
-        task_box.pack_start(scrolled, True, True, 0)
+        scrolled.set_min_content_height(300)
+        expander_box.pack_start(scrolled, True, True, 0)
 
-        # Task list
-        self.task_store = Gtk.ListStore(int, str, str)  # id, name, total_time
-        self.task_view = Gtk.TreeView(model=self.task_store)
+        # Entries TreeView
+        self.entries_store = Gtk.ListStore(int, str, str, str, str, str, str)  # id, task, start, end, duration, note, task_id
+        self.entries_tree = Gtk.TreeView(model=self.entries_store)
+        self.entries_tree.set_headers_visible(True)
+        scrolled.add(self.entries_tree)
 
-        # Columns
-        renderer_name = Gtk.CellRendererText()
-        column_name = Gtk.TreeViewColumn("Uppgift", renderer_name, text=1)
-        column_name.set_expand(True)
-        self.task_view.append_column(column_name)
+        # Columns for entries
+        columns = [
+            ("Uppgift", 1),
+            ("Starttid", 2),
+            ("Sluttid", 3),
+            ("Varaktighet", 4),
+            ("Anteckning", 5)
+        ]
 
-        renderer_time = Gtk.CellRendererText()
-        column_time = Gtk.TreeViewColumn("Total tid", renderer_time, text=2)
-        self.task_view.append_column(column_time)
+        for title, col_id in columns:
+            renderer = Gtk.CellRendererText()
+            column = Gtk.TreeViewColumn(title, renderer, text=col_id)
+            column.set_resizable(True)
+            column.set_sort_column_id(col_id)
+            self.entries_tree.append_column(column)
 
-        scrolled.add(self.task_view)
+        # Right-click context menu for entries
+        self.entries_tree.connect("button-press-event", self._on_entries_button_press)
 
-        # Task buttons
+        # Bottom button box
         button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-        task_box.pack_start(button_box, False, False, 5)
-
-        new_task_button = Gtk.Button(label="Ny uppgift")
-        new_task_button.connect("clicked", self._on_new_task_clicked)
-        button_box.pack_start(new_task_button, True, True, 0)
+        button_box.set_margin_top(10)
+        vbox.pack_start(button_box, False, False, 0)
 
         manage_tasks_button = Gtk.Button(label="Hantera uppgifter")
         manage_tasks_button.connect("clicked", self._on_manage_tasks_clicked)
@@ -158,30 +204,17 @@ class MainWindow(Gtk.Window):
         manage_categories_button.connect("clicked", self._on_manage_categories_clicked)
         button_box.pack_start(manage_categories_button, True, True, 0)
 
-        manage_entries_button = Gtk.Button(label="Hantera tidsinmatningar")
-        manage_entries_button.connect("clicked", self._on_manage_entries_clicked)
-        button_box.pack_start(manage_entries_button, True, True, 0)
-
-        self.start_button = Gtk.Button(label="Starta tidsinmatning")
-        self.start_button.get_style_context().add_class("suggested-action")
-        self.start_button.connect("clicked", self._on_start_clicked)
-        button_box.pack_start(self.start_button, True, True, 0)
+        # Filter state
+        self.current_start_date = None
+        self.current_end_date = None
+        self.current_task_id = None
 
     def _load_tasks(self):
-        """Load tasks from database into the list."""
-        self.task_store.clear()
+        """Load tasks from database into completion store."""
         self.task_completion_store.clear()
         tasks = self.db.get_tasks()
 
         for task in tasks:
-            total_seconds = self.db.get_task_total_time(task['id'])
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            seconds = total_seconds % 60
-            time_str = f"{hours}:{minutes:02d}:{seconds:02d}"
-
-            self.task_store.append([task['id'], task['name'], time_str])
-
             # Add active tasks to completion
             if task['active']:
                 self.task_completion_store.append([task['id'], task['name']])
@@ -197,7 +230,6 @@ class MainWindow(Gtk.Window):
             if not self.user_is_typing:
                 self.task_search_entry.set_text(active_entry['task_name'])
             self.stop_button.set_sensitive(True)
-            self.start_button.set_sensitive(False)
         else:
             self.current_task_id = None
             self.current_entry_id = None
@@ -205,7 +237,6 @@ class MainWindow(Gtk.Window):
             if not self.user_is_typing:
                 self.task_search_entry.set_text("")
             self.stop_button.set_sensitive(False)
-            self.start_button.set_sensitive(True)
 
     def _start_timer_update(self):
         """Start updating the timer display."""
@@ -235,55 +266,6 @@ class MainWindow(Gtk.Window):
 
         return True  # Continue calling
 
-    def _on_new_task_clicked(self, button):
-        """Handle new task button click."""
-        dialog = Gtk.Dialog(
-            title="Ny uppgift",
-            parent=self,
-            modal=True,
-            destroy_with_parent=True
-        )
-        dialog.add_button("Avbryt", Gtk.ResponseType.CANCEL)
-        dialog.add_button("Skapa", Gtk.ResponseType.OK)
-
-        content = dialog.get_content_area()
-        content.set_spacing(10)
-        content.set_margin_top(10)
-        content.set_margin_bottom(10)
-        content.set_margin_start(10)
-        content.set_margin_end(10)
-
-        label = Gtk.Label(label="Uppgiftens namn:")
-        content.pack_start(label, False, False, 0)
-
-        entry = Gtk.Entry()
-        entry.set_activates_default(True)
-        content.pack_start(entry, False, False, 0)
-
-        dialog.set_default_response(Gtk.ResponseType.OK)
-        dialog.show_all()
-
-        response = dialog.run()
-        task_name = entry.get_text().strip()
-        dialog.destroy()
-
-        if response == Gtk.ResponseType.OK and task_name:
-            try:
-                self.db.add_task(task_name)
-                self._load_tasks()
-                # Update tray menu with new task
-                if self.tray:
-                    self.tray.refresh_tasks()
-            except Exception as e:
-                error_dialog = Gtk.MessageDialog(
-                    parent=self,
-                    modal=True,
-                    message_type=Gtk.MessageType.ERROR,
-                    buttons=Gtk.ButtonsType.OK,
-                    text=f"Kunde inte skapa uppgift: {e}"
-                )
-                error_dialog.run()
-                error_dialog.destroy()
 
     def _on_manage_tasks_clicked(self, button):
         """Handle manage tasks button click."""
@@ -295,29 +277,6 @@ class MainWindow(Gtk.Window):
         categories_window = CategoriesWindow(self.db, parent=self)
         categories_window.show_all()
 
-    def _on_manage_entries_clicked(self, button):
-        """Handle manage entries button click."""
-        entries_window = EntriesWindow(self.db, parent=self)
-        entries_window.show_all()
-
-    def _on_start_clicked(self, button):
-        """Handle start button click."""
-        selection = self.task_view.get_selection()
-        model, tree_iter = selection.get_selected()
-
-        if tree_iter:
-            task_id = model[tree_iter][0]
-            self.start_tracking(task_id)
-        else:
-            dialog = Gtk.MessageDialog(
-                parent=self,
-                modal=True,
-                message_type=Gtk.MessageType.WARNING,
-                buttons=Gtk.ButtonsType.OK,
-                text="Välj en uppgift först"
-            )
-            dialog.run()
-            dialog.destroy()
 
     def _on_stop_clicked(self, button):
         """Handle stop button click."""
@@ -351,9 +310,10 @@ class MainWindow(Gtk.Window):
 
             self.task_search_entry.set_text("")
             self.stop_button.set_sensitive(False)
-            self.start_button.set_sensitive(True)
 
             self._load_tasks()  # Refresh to show updated times
+            self._refresh_entries()  # Refresh entries list
+            self._update_summary()  # Update summary
 
             # Update tray
             if self.tray:
@@ -483,6 +443,212 @@ class MainWindow(Gtk.Window):
         """Handle window close - hide instead of destroying."""
         self.hide()
         return True  # Prevent default destroy behavior
+
+    def _on_filter_today(self, button):
+        """Handle 'today' filter button."""
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        self.current_start_date = today
+        self.current_end_date = today
+        self._refresh_entries()
+        self._update_summary()
+
+    def _on_filter_this_week(self, button):
+        """Handle 'this week' filter button."""
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_of_week = today - timedelta(days=today.weekday())
+        self.current_start_date = start_of_week
+        self.current_end_date = today
+        self._refresh_entries()
+        self._update_summary()
+
+    def _on_filter_this_month(self, button):
+        """Handle 'this month' filter button."""
+        today = datetime.now()
+        start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_of_month = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        self.current_start_date = start_of_month
+        self.current_end_date = end_of_month
+        self._refresh_entries()
+        self._update_summary()
+
+    def _on_filter_all(self, button):
+        """Handle 'all' filter button."""
+        self.current_start_date = None
+        self.current_end_date = None
+        self._refresh_entries()
+        self._update_summary()
+
+    def _refresh_entries(self):
+        """Refresh the entries list with current filters."""
+        self.entries_store.clear()
+
+        entries = self.db.get_entries(
+            start_date=self.current_start_date,
+            end_date=self.current_end_date,
+            task_id=self.current_task_id
+        )
+
+        for entry in entries:
+            # Format times
+            start_time = datetime.fromisoformat(entry['start_time']).strftime('%Y-%m-%d %H:%M:%S')
+
+            if entry['end_time']:
+                end_time = datetime.fromisoformat(entry['end_time']).strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                end_time = "Pågående"
+
+            # Format duration
+            if entry['duration_seconds']:
+                hours = entry['duration_seconds'] // 3600
+                minutes = (entry['duration_seconds'] % 3600) // 60
+                seconds = entry['duration_seconds'] % 60
+                duration = f"{hours}:{minutes:02d}:{seconds:02d}"
+            else:
+                duration = "—"
+
+            note = entry['note'] if entry['note'] else ""
+
+            self.entries_store.append([
+                entry['id'],
+                entry['task_name'],
+                start_time,
+                end_time,
+                duration,
+                note,
+                str(entry['task_id'])
+            ])
+
+    def _update_summary(self):
+        """Update the summary label with total time for the current filter."""
+        # Calculate total time for entries in current filter
+        entries = self.db.get_entries(
+            start_date=self.current_start_date,
+            end_date=self.current_end_date,
+            task_id=self.current_task_id
+        )
+
+        total_seconds = sum(entry['duration_seconds'] or 0 for entry in entries)
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+
+        # Determine label text based on filter
+        if self.current_start_date and self.current_end_date:
+            if self.current_start_date == self.current_end_date:
+                # Single day
+                if self.current_start_date == datetime.now().replace(hour=0, minute=0, second=0, microsecond=0):
+                    label_text = "Totalt idag"
+                else:
+                    label_text = f"Totalt {self.current_start_date.strftime('%Y-%m-%d')}"
+            else:
+                # Date range
+                label_text = f"Totalt {self.current_start_date.strftime('%Y-%m-%d')} - {self.current_end_date.strftime('%Y-%m-%d')}"
+        else:
+            label_text = "Totalt (alla)"
+
+        self.summary_label.set_markup(f"<b>{label_text}: {hours}:{minutes:02d}:{seconds:02d}</b>")
+
+    def _on_entries_button_press(self, widget, event):
+        """Handle button press events on entries tree."""
+        if event.button == 3:  # Right click
+            # Get selection
+            path_info = widget.get_path_at_pos(int(event.x), int(event.y))
+            if path_info:
+                path, column, cell_x, cell_y = path_info
+                widget.get_selection().select_path(path)
+
+                # Create context menu
+                menu = Gtk.Menu()
+
+                edit_item = Gtk.MenuItem(label="Editera")
+                edit_item.connect("activate", self._on_edit_entry_menu)
+                menu.append(edit_item)
+
+                delete_item = Gtk.MenuItem(label="Ta bort")
+                delete_item.connect("activate", self._on_delete_entry_menu)
+                menu.append(delete_item)
+
+                menu.show_all()
+                menu.popup(None, None, None, None, event.button, event.time)
+
+            return True
+        return False
+
+    def _on_edit_entry_menu(self, menu_item):
+        """Handle edit entry from context menu."""
+        selection = self.entries_tree.get_selection()
+        model, tree_iter = selection.get_selected()
+
+        if tree_iter:
+            entry_id = model[tree_iter][0]
+
+            # Get full entry data
+            cursor = self.db.conn.cursor()
+            cursor.execute("""
+                SELECT te.*, t.name as task_name
+                FROM time_entries te
+                JOIN tasks t ON te.task_id = t.id
+                WHERE te.id = ?
+            """, (entry_id,))
+            entry = cursor.fetchone()
+
+            if entry:
+                dialog = EditEntryDialog(parent=self, db=self.db, entry_data=dict(entry))
+                response = dialog.run()
+
+                if response == Gtk.ResponseType.OK:
+                    result = dialog.get_entry_data()
+                    if result:
+                        # Update entry
+                        success = self.db.update_time_entry(
+                            entry_id,
+                            result['task_id'],
+                            result['start_time'],
+                            result['end_time'],
+                            result['duration_seconds'],
+                            result['note']
+                        )
+
+                        if success:
+                            self._refresh_entries()
+                            self._update_summary()
+                            self._load_tasks()
+
+                dialog.destroy()
+
+    def _on_delete_entry_menu(self, menu_item):
+        """Handle delete entry from context menu."""
+        selection = self.entries_tree.get_selection()
+        model, tree_iter = selection.get_selected()
+
+        if tree_iter:
+            entry_id = model[tree_iter][0]
+            task_name = model[tree_iter][1]
+            start_time = model[tree_iter][2]
+
+            # Confirmation dialog
+            dialog = Gtk.MessageDialog(
+                transient_for=self,
+                flags=0,
+                message_type=Gtk.MessageType.QUESTION,
+                buttons=Gtk.ButtonsType.YES_NO,
+                text="Bekräfta borttagning"
+            )
+            dialog.format_secondary_text(
+                f"Är du säker på att du vill ta bort tidsinmatningen?\n\n"
+                f"Uppgift: {task_name}\n"
+                f"Starttid: {start_time}"
+            )
+
+            response = dialog.run()
+            dialog.destroy()
+
+            if response == Gtk.ResponseType.YES:
+                success = self.db.delete_time_entry(entry_id)
+                if success:
+                    self._refresh_entries()
+                    self._update_summary()
+                    self._load_tasks()
 
     def cleanup(self):
         """Cleanup before closing."""
