@@ -172,7 +172,8 @@ class TimeTrackerApp:
             entry_id = self.db.start_time_entry(other_task_id, lock_time)
             self.db.stop_time_entry(entry_id, unlock_time)
 
-            # Don't auto-start tracking after this
+            # Resume tracking on the original task (before the lock)
+            self.main_window.start_tracking(state['active_task_id'])
 
         elif action == 'skip':
             # Don't log the time - just stop the entry at lock time
