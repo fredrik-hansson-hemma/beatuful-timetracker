@@ -141,7 +141,7 @@ class MainWindow(Gtk.Window):
         filter_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         expander_box.pack_start(filter_box, False, False, 0)
 
-        filter_label = Gtk.Label(label="Filter:")
+        filter_label = Gtk.Label(label="Period:")
         filter_box.pack_start(filter_label, False, False, 0)
 
         self.btn_today = Gtk.Button(label="Idag")
@@ -159,6 +159,30 @@ class MainWindow(Gtk.Window):
         self.btn_all = Gtk.Button(label="Allt")
         self.btn_all.connect("clicked", self._on_filter_all)
         filter_box.pack_start(self.btn_all, False, False, 0)
+
+        # Task filter entry with completion
+        task_filter_label = Gtk.Label(label="Uppgift:")
+        task_filter_label.set_margin_start(20)
+        filter_box.pack_start(task_filter_label, False, False, 0)
+
+        self.task_filter_entry = Gtk.Entry()
+        self.task_filter_entry.set_placeholder_text("Alla uppgifter")
+        self.task_filter_entry.set_hexpand(True)
+        filter_box.pack_start(self.task_filter_entry, True, True, 0)
+
+        # Setup completion for task filter
+        self.task_filter_completion = Gtk.EntryCompletion()
+        self.task_filter_completion_store = Gtk.ListStore(int, str)  # task_id, task_name
+        self.task_filter_completion.set_model(self.task_filter_completion_store)
+        self.task_filter_completion.set_text_column(1)
+        self.task_filter_completion.set_minimum_key_length(0)
+        self.task_filter_completion.set_inline_completion(True)
+        self.task_filter_entry.set_completion(self.task_filter_completion)
+
+        # Connect signals
+        self.task_filter_entry.connect("activate", self._on_task_filter_activate)
+        self.task_filter_entry.connect("changed", self._on_task_filter_entry_changed)
+        self.task_filter_completion.connect("match-selected", self._on_task_filter_completion_match)
 
         # Scrolled window for entries list
         scrolled = Gtk.ScrolledWindow()
@@ -204,20 +228,24 @@ class MainWindow(Gtk.Window):
         manage_categories_button.connect("clicked", self._on_manage_categories_clicked)
         button_box.pack_start(manage_categories_button, True, True, 0)
 
-        # Filter state
+        # Filter state (for entries list filtering)
         self.current_start_date = None
         self.current_end_date = None
-        self.current_task_id = None
+        self.filter_task_id = None  # Separate from current_task_id used for tracking
 
     def _load_tasks(self):
-        """Load tasks from database into completion store."""
+        """Load tasks from database into completion stores."""
         self.task_completion_store.clear()
+        self.task_filter_completion_store.clear()
         tasks = self.db.get_tasks()
 
         for task in tasks:
-            # Add active tasks to completion
+            # Add active tasks to completion for tracking
             if task['active']:
                 self.task_completion_store.append([task['id'], task['name']])
+
+            # Add all tasks (active and inactive) to filter completion
+            self.task_filter_completion_store.append([task['id'], task['name']])
 
     def _check_active_entry(self):
         """Check if there's an active time entry and update UI."""
@@ -295,7 +323,6 @@ class MainWindow(Gtk.Window):
             self.task_search_entry.set_text(task['name'])
 
         self.stop_button.set_sensitive(True)
-        self.start_button.set_sensitive(False)
 
         # Update tray
         if self.tray:
@@ -478,6 +505,53 @@ class MainWindow(Gtk.Window):
         self._refresh_entries()
         self._update_summary()
 
+    def _on_task_filter_entry_changed(self, entry):
+        """Handle task filter entry text change."""
+        text = entry.get_text().strip()
+
+        # If empty, show all tasks
+        if not text:
+            if self.filter_task_id is not None:
+                self.filter_task_id = None
+                self._refresh_entries()
+                self._update_summary()
+
+    def _on_task_filter_activate(self, entry):
+        """Handle Enter key in task filter entry."""
+        text = entry.get_text().strip()
+
+        if not text:
+            # Empty = show all tasks
+            self.filter_task_id = None
+            self._refresh_entries()
+            self._update_summary()
+            return
+
+        # Check if task exists
+        tasks = self.db.get_tasks()
+        matching_task = None
+        for task in tasks:
+            if task['name'].lower() == text.lower():
+                matching_task = task
+                break
+
+        if matching_task:
+            self.filter_task_id = matching_task['id']
+            self._refresh_entries()
+            self._update_summary()
+
+    def _on_task_filter_completion_match(self, completion, model, iter):
+        """Handle selection from task filter completion dropdown."""
+        task_id = model[iter][0]
+        task_name = model[iter][1]
+
+        self.filter_task_id = task_id
+        self.task_filter_entry.set_text(task_name)
+        self._refresh_entries()
+        self._update_summary()
+
+        return True
+
     def _refresh_entries(self):
         """Refresh the entries list with current filters."""
         self.entries_store.clear()
@@ -485,7 +559,7 @@ class MainWindow(Gtk.Window):
         entries = self.db.get_entries(
             start_date=self.current_start_date,
             end_date=self.current_end_date,
-            task_id=self.current_task_id
+            task_id=self.filter_task_id
         )
 
         for entry in entries:
@@ -524,7 +598,7 @@ class MainWindow(Gtk.Window):
         entries = self.db.get_entries(
             start_date=self.current_start_date,
             end_date=self.current_end_date,
-            task_id=self.current_task_id
+            task_id=self.filter_task_id
         )
 
         total_seconds = sum(entry['duration_seconds'] or 0 for entry in entries)
